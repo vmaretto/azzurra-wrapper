@@ -1,0 +1,78 @@
+/* Global styles for the Azzurra wrapper application.  These styles
+   establish a calming palette and simple responsive layout. */
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  min-height: 100vh;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+    Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+  background-color: #f7f9f7;
+  color: #333;
+}
+
+/* Container that fills the viewport and centers content when possible. */
+.app-container {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+/* Generic section styling used by the welcome, profile and survey
+   screens.  Ensures content is centered on the page. */
+.screen {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  padding: 2rem;
+  text-align: center;
+}
+
+/* Styling for form elements. */
+form {
+  display: flex;
+  flex-direction: column;
+  max-width: 320px;
+  width: 100%;
+}
+
+label {
+  margin-top: 1rem;
+  font-weight: 500;
+  text-align: left;
+}
+
+input,
+textarea {
+  font-size: 1rem;
+  padding: 0.5rem;
+  border: 1px solid #ccc;
+  border-radius: 0.25rem;
+  margin-top: 0.25rem;
+}
+
+button {
+  margin-top: 1.5rem;
+  padding: 0.75rem 1.5rem;
+  font-size: 1rem;
+  color: #fff;
+  background-color: #426b1f;
+  border: none;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+button:hover {
+  background-color: #35561a;
+}
+
+/* Make the iframe fill available vertical space. */
+iframe {
+  width: 100%;
+  height: 100vh;
+  border: none;
+}
