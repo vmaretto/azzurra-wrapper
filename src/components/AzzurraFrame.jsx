@@ -7,7 +7,7 @@ export default function AzzurraFrame({ src, onFinish }) {
       if (!event.origin || !event.origin.includes('posti.world')) return;
       const data = event.data;
       if (data && typeof data === 'object' && data.type === 'finished') {
-        onFinish(data.output);  // termina l'esperienza quando Azzurra invia type = 'finished'
+        onFinish(data.output);
       }
     }
     window.addEventListener('message', handleMessage);
@@ -16,12 +16,12 @@ export default function AzzurraFrame({ src, onFinish }) {
 
   return (
     <div style={{ position: 'relative', width: '100%', height: '100vh' }}>
-      {/* pulsante di uscita stilizzato in alto a sinistra */}
+      {/* pulsante di uscita posizionato sotto il logo Azzurra (120px dall'alto) */}
       <button
         onClick={() => onFinish(null)}
         style={{
           position: 'absolute',
-          top: '1.5rem',
+          top: '120px',
           left: '1.5rem',
           zIndex: 10,
           padding: '0.75rem 1.5rem',
