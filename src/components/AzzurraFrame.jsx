@@ -1,17 +1,8 @@
 import React, { useEffect } from 'react';
 
-/**
- * AzzurraFrame embeds the remote Azzurra webapp in an iframe and
- * listens for cross-origin messages.  When the iframe sends a
- * message with type `finished`, it invokes the provided onFinish
- * callback with the message payload.  Only messages originating
- * from posti.world are accepted to prevent cross-site injection.
- */
 export default function AzzurraFrame({ src, onFinish }) {
   useEffect(() => {
     function handleMessage(event) {
-      // Reject messages from unknown origins.  We only expect
-      // messages from posti.world.
       if (!event.origin || !event.origin.includes('posti.world')) {
         return;
       }
@@ -21,10 +12,32 @@ export default function AzzurraFrame({ src, onFinish }) {
       }
     }
     window.addEventListener('message', handleMessage);
-    return () => {
-      window.removeEventListener('message', handleMessage);
-    };
+    return () => window.removeEventListener('message', handleMessage);
   }, [onFinish]);
 
-  return <iframe src={src} title="Azzurra App" />;
+  return (
+    <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+      <button
+        onClick={() => onFinish(null)}
+        style={{
+          position: 'absolute',
+          top: '1rem',
+          left: '1rem',
+          zIndex: 10,
+          padding: '0.5rem 1rem',
+          backgroundColor: '#ffffffcc',
+          border: 'none',
+          borderRadius: '4px',
+          cursor: 'pointer'
+        }}
+      >
+        Esci
+      </button>
+      <iframe
+        src={src}
+        title="Azzurra App"
+        style={{ width: '100%', height: '100vh', border: 'none' }}
+      />
+    </div>
+  );
 }
