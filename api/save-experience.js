@@ -1,17 +1,14 @@
 import { neon } from '@neondatabase/serverless';
 
 export default async function handler(req, res) {
-  // Abilita CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
-  // Handle preflight
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
   }
 
-  // Accetta solo POST
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
@@ -19,7 +16,6 @@ export default async function handler(req, res) {
   try {
     const experienceData = req.body;
     
-    // Validazione dati
     if (!experienceData.profile || experienceData.duration === undefined) {
       return res.status(400).json({ 
         error: 'Missing required fields',
@@ -27,10 +23,8 @@ export default async function handler(req, res) {
       });
     }
 
-    // Connessione a Neon
-    const sql = neon(process.env.DATABASE_URL);
+    const sql = neon(process.env.DATABASE_URL || process.env.POSTGRES_DATABASE_URL);
     
-    // Query per inserire i dati
     const result = await sql`
       INSERT INTO azzurra_experiences 
         (timestamp, duration, profile, output, feedback)
