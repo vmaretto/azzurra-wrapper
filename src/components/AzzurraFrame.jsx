@@ -16,13 +16,13 @@ export default function AzzurraFrame({ src, onFinish }) {
 
   return (
     <div style={{ position: 'relative', width: '100%', height: '100vh' }}>
-      {/* pulsante di uscita posizionato sotto il logo Azzurra (120px dall'alto) */}
+      {/* pulsante di uscita in alto a destra */}
       <button
         onClick={() => onFinish(null)}
         style={{
           position: 'absolute',
-          top: '120px',
-          left: '1.5rem',
+          top: '1.5rem',
+          right: '1.5rem',
           zIndex: 10,
           padding: '0.75rem 1.5rem',
           background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
@@ -47,7 +47,7 @@ export default function AzzurraFrame({ src, onFinish }) {
           e.currentTarget.style.boxShadow = '0 4px 15px rgba(102, 126, 234, 0.4)';
         }}
       >
-        ← Esci
+        Esci ✕
       </button>
       {/* iframe che riempie tutto il contenitore */}
       <iframe
