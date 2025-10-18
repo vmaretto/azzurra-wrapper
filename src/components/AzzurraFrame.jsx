@@ -49,11 +49,13 @@ export default function AzzurraFrame({ src, onFinish }) {
       >
         Esci ✕
       </button>
-      {/* iframe che riempie tutto il contenitore */}
+      {/* iframe con permessi per microfono e webcam */}
       <iframe
         src={src}
         title="Azzurra App"
         style={{ width: '100%', height: '100%', border: 'none' }}
+        allow="microphone *; camera *; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+        allowFullScreen
       />
     </div>
   );
