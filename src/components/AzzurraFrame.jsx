@@ -1,6 +1,9 @@
 import React, { useEffect } from 'react';
 
 export default function AzzurraFrame({ src, onFinish }) {
+  // Aggiungi timestamp all'URL per evitare problemi di cache
+  const srcWithTimestamp = `${src}${src.includes('?') ? '&' : '?'}t=${Date.now()}`;
+  
   useEffect(() => {
     function handleMessage(event) {
       // accetta solo messaggi provenienti dal dominio posti.world
@@ -51,7 +54,7 @@ export default function AzzurraFrame({ src, onFinish }) {
       </button>
       {/* iframe con permessi per microfono e webcam */}
       <iframe
-        src={src}
+        src={srcWithTimestamp}
         title="Azzurra App"
         style={{ width: '100%', height: '100%', border: 'none' }}
         allow="microphone *; camera *; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
