@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find:*)",
+      "Bash(npm run dev:*)",
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nUpdate branding: nuova palette blu Azzurra #016fab e pattern\n\n- Aggiunto pattern sfondo con cappelli da chef\n- Aggiunto logo Azzurra nella WelcomeScreen\n- Sostituita palette viola/rosa con blu Azzurra \\(#016fab, #014d7a\\)\n- Aggiornati colori in new-styles.css, AzzurraFrame, SuccessModal\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(git push:*)",
+      "Bash(npm install:*)",
+      "WebFetch(domain:docs.liveavatar.com)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:www.npmjs.com)",
+      "WebFetch(domain:docs.heygen.com)",
+      "WebSearch",
+      "WebFetch(domain:help.heygen.com)",
+      "Bash(npm uninstall:*)",
+      "Bash(npm run build:*)",
+      "Bash(git commit:*)"
+    ]
+  }
+}

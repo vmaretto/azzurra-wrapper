@@ -1,0 +1,7 @@
+{
+  "dependencies_to_add": {
+    "@heygen/streaming-avatar": "^2.0.0",
+    "@anthropic-ai/sdk": "^0.30.0"
+  },
+  "install_command": "npm install @heygen/streaming-avatar @anthropic-ai/sdk"
+}
