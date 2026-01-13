@@ -4,9 +4,7 @@ import {
   LiveAvatarSession,
   SessionEvent,
   SessionState,
-  AgentEventsEnum,
-  TaskType,
-  TaskMode
+  AgentEventsEnum
 } from '@heygen/liveavatar-web-sdk';
 
 export function useAzzurra() {
@@ -81,11 +79,10 @@ export function useAzzurra() {
           setTimeout(() => {
             console.log('Sending welcome message');
             try {
-              // Usa speak con TaskType.REPEAT per far parlare l'avatar
+              // Usa speak per far parlare l'avatar
               session.speak({
                 text: WELCOME_MESSAGE,
-                taskType: TaskType.REPEAT,
-                taskMode: TaskMode.SYNC
+                task_type: 'repeat'
               });
               console.log('Welcome message sent successfully');
             } catch (err) {
@@ -147,8 +144,7 @@ export function useAzzurra() {
           try {
             session.speak({
               text: reply,
-              taskType: TaskType.REPEAT,
-              taskMode: TaskMode.SYNC
+              task_type: 'repeat'
             });
             console.log('Reply sent to avatar');
           } catch (speakErr) {
@@ -160,8 +156,7 @@ export function useAzzurra() {
           try {
             session.speak({
               text: "Scusami, non ho capito bene. Puoi ripetere?",
-              taskType: TaskType.REPEAT,
-              taskMode: TaskMode.SYNC
+              task_type: 'repeat'
             });
           } catch (fallbackErr) {
             console.error('Error sending fallback:', fallbackErr);
@@ -223,8 +218,7 @@ export function useAzzurra() {
       // Fai parlare Azzurra con speak()
       sessionRef.current.speak({
         text: reply,
-        taskType: TaskType.REPEAT,
-        taskMode: TaskMode.SYNC
+        task_type: 'repeat'
       });
     } catch (err) {
       console.error('Send message error:', err);
