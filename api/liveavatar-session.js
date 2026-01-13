@@ -24,13 +24,7 @@ export default async function handler(req, res) {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        mode: 'FULL',
-        avatar_id: AVATAR_ID,
-        avatar_persona: {
-          voice_id: '', // Usa la voce di default dell'avatar
-          context_id: 'general_assistant',
-          language: 'it'
-        }
+        avatar_id: AVATAR_ID
       })
     });
 
