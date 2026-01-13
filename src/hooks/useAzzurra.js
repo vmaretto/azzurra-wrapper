@@ -4,7 +4,9 @@ import {
   LiveAvatarSession,
   SessionEvent,
   SessionState,
-  AgentEventsEnum
+  AgentEventsEnum,
+  TaskType,
+  TaskMode
 } from '@heygen/liveavatar-web-sdk';
 
 export function useAzzurra() {
@@ -79,7 +81,12 @@ export function useAzzurra() {
           setTimeout(() => {
             console.log('Sending welcome message');
             try {
-              session.repeat(WELCOME_MESSAGE);
+              // Usa speak con TaskType.REPEAT per far parlare l'avatar
+              session.speak({
+                text: WELCOME_MESSAGE,
+                taskType: TaskType.REPEAT,
+                taskMode: TaskMode.SYNC
+              });
               console.log('Welcome message sent successfully');
             } catch (err) {
               console.error('Error sending welcome message:', err);
@@ -136,18 +143,26 @@ export function useAzzurra() {
           // Aggiorna history
           setConversationHistory(prev => [...prev, { role: 'assistant', content: reply }]);
 
-          // Fai parlare Azzurra (repeat per CUSTOM mode)
+          // Fai parlare Azzurra con speak()
           try {
-            session.repeat(reply);
+            session.speak({
+              text: reply,
+              taskType: TaskType.REPEAT,
+              taskMode: TaskMode.SYNC
+            });
             console.log('Reply sent to avatar');
-          } catch (repeatErr) {
-            console.error('Error sending reply to avatar:', repeatErr);
+          } catch (speakErr) {
+            console.error('Error sending reply to avatar:', speakErr);
           }
         } catch (err) {
           console.error('Error getting response:', err);
           // Risposta di fallback
           try {
-            session.repeat("Scusami, non ho capito bene. Puoi ripetere?");
+            session.speak({
+              text: "Scusami, non ho capito bene. Puoi ripetere?",
+              taskType: TaskType.REPEAT,
+              taskMode: TaskMode.SYNC
+            });
           } catch (fallbackErr) {
             console.error('Error sending fallback:', fallbackErr);
           }
@@ -205,8 +220,12 @@ export function useAzzurra() {
       // Aggiorna history
       setConversationHistory(prev => [...prev, { role: 'assistant', content: reply }]);
 
-      // Fai parlare Azzurra (repeat per CUSTOM mode)
-      sessionRef.current.repeat(reply);
+      // Fai parlare Azzurra con speak()
+      sessionRef.current.speak({
+        text: reply,
+        taskType: TaskType.REPEAT,
+        taskMode: TaskMode.SYNC
+      });
     } catch (err) {
       console.error('Send message error:', err);
       setError(err.message);
