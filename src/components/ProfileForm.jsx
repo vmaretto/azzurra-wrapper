@@ -1,79 +1,99 @@
 import React, { useState } from 'react';
 
 /**
- * ProfileForm collects information about the user's culinary preferences,
- * focusing on Italian cuisine. When the form is submitted, it invokes 
- * the onSubmit callback with the collected data.
- * 
- * Enhanced with improved visual design and better UX.
+ * ProfileForm collects demographic information about the user.
+ * When the form is submitted, it invokes the onSubmit callback with the collected data.
  */
 export default function ProfileForm({ onSubmit }) {
-  const [experience, setExperience] = useState('');
-  const [favouriteDish, setFavouriteDish] = useState('');
-  const [dietaryPref, setDietaryPref] = useState('');
-  const [region, setRegion] = useState('');
+  const [sesso, setSesso] = useState('');
+  const [fasciaEta, setFasciaEta] = useState('');
+  const [titoloStudio, setTitoloStudio] = useState('');
+  const [areaGeografica, setAreaGeografica] = useState('');
+  const [rapportoCibo, setRapportoCibo] = useState('');
 
   const handleSubmit = (event) => {
     event.preventDefault();
-    onSubmit({ experience, favouriteDish, dietaryPref, region });
+    onSubmit({ sesso, fasciaEta, titoloStudio, areaGeografica, rapportoCibo });
   };
 
   return (
     <section className="screen">
       <div className="card">
-        <h2>Parlaci della tua esperienza con la cucina italiana</h2>
+        <h2>Parlaci di te</h2>
         <p style={{ color: '#777', fontSize: '0.95rem', marginBottom: '0.5rem' }}>
-          Personalizza la tua esperienza culinaria rispondendo ad alcune domande
+          Compila il form per personalizzare la tua esperienza
         </p>
         <form onSubmit={handleSubmit} className="profile-form">
           <label>
-            Livello di esperienza culinaria:
-            <select 
-              value={experience} 
-              onChange={(e) => setExperience(e.target.value)} 
+            Sesso:
+            <select
+              value={sesso}
+              onChange={(e) => setSesso(e.target.value)}
               required
             >
-              <option value="">Seleziona il tuo livello...</option>
-              <option value="principiante">🌱 Principiante</option>
-              <option value="intermedio">👨‍🍳 Intermedio</option>
-              <option value="avanzato">⭐ Avanzato</option>
-              <option value="chef">🏆 Chef professionista</option>
+              <option value="">Seleziona...</option>
+              <option value="M">M</option>
+              <option value="F">F</option>
+              <option value="Non specificato">Non specificato</option>
             </select>
           </label>
           <label>
-            Piatto italiano preferito:
-            <input 
-              type="text" 
-              value={favouriteDish} 
-              onChange={(e) => setFavouriteDish(e.target.value)} 
-              placeholder="Es: Lasagne, Carbonara, Risotto..." 
-              required 
-            />
-          </label>
-          <label>
-            Preferenze dietetiche:
-            <select 
-              value={dietaryPref} 
-              onChange={(e) => setDietaryPref(e.target.value)} 
+            Fascia Età:
+            <select
+              value={fasciaEta}
+              onChange={(e) => setFasciaEta(e.target.value)}
               required
             >
-              <option value="">Seleziona le tue preferenze...</option>
-              <option value="nessuna">Nessuna restrizione</option>
-              <option value="vegetariano">🥗 Vegetariano</option>
-              <option value="vegano">🌱 Vegano</option>
-              <option value="senza-glutine">🌾 Senza glutine</option>
-              <option value="altro">Altro</option>
+              <option value="">Seleziona...</option>
+              <option value="<21 anni">&lt;21 anni</option>
+              <option value="22-30 anni">22-30 anni</option>
+              <option value="31-45 anni">31-45 anni</option>
+              <option value="46-55 anni">46-55 anni</option>
+              <option value="56-65 anni">56-65 anni</option>
+              <option value=">65 anni">&gt;65 anni</option>
             </select>
           </label>
           <label>
-            Regione d'Italia di maggiore interesse:
-            <input 
-              type="text" 
-              value={region} 
-              onChange={(e) => setRegion(e.target.value)} 
-              placeholder="Es: Toscana, Sicilia, Veneto, Campania..." 
-              required 
-            />
+            Titolo di studio:
+            <select
+              value={titoloStudio}
+              onChange={(e) => setTitoloStudio(e.target.value)}
+              required
+            >
+              <option value="">Seleziona...</option>
+              <option value="Diploma">Diploma</option>
+              <option value="Laurea triennale">Laurea triennale</option>
+              <option value="Laurea Magistrale">Laurea Magistrale</option>
+              <option value="Master">Master</option>
+            </select>
+          </label>
+          <label>
+            Area Geografica:
+            <select
+              value={areaGeografica}
+              onChange={(e) => setAreaGeografica(e.target.value)}
+              required
+            >
+              <option value="">Seleziona...</option>
+              <option value="Nord">Nord</option>
+              <option value="Centro">Centro</option>
+              <option value="Sud">Sud</option>
+              <option value="Isole">Isole</option>
+            </select>
+          </label>
+          <label>
+            Tu rispetto al cibo sei?
+            <select
+              value={rapportoCibo}
+              onChange={(e) => setRapportoCibo(e.target.value)}
+              required
+            >
+              <option value="">Seleziona...</option>
+              <option value="Curioso">Curioso</option>
+              <option value="Goloso">Goloso</option>
+              <option value="Gourmet">Gourmet</option>
+              <option value="Professionale">Professionale</option>
+            </select>
           </label>
           <button type="submit">Inizia l'esperienza</button>
         </form>

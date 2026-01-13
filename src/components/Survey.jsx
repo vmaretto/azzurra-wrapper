@@ -10,10 +10,15 @@ import SuccessModal from './SuccessModal.jsx';
  */
 export default function Survey({ duration, profile, output, onRestart }) {
   const [feedback, setFeedback] = useState('');
+  const [rating, setRating] = useState(0);
   const [showModal, setShowModal] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async () => {
+    if (rating === 0) {
+      alert('Per favore, seleziona una valutazione da 1 a 5 stelle');
+      return;
+    }
     setIsSubmitting(true);
     
     const result = {
@@ -21,6 +26,7 @@ export default function Survey({ duration, profile, output, onRestart }) {
       duration,
       profile,
       output,
+      rating,
       feedback
     };
     
@@ -87,18 +93,21 @@ export default function Survey({ duration, profile, output, onRestart }) {
 
           {profile && (
             <div className="profile-summary">
-              <h3>Il tuo profilo culinario:</h3>
-              {profile.experience && (
-                <p><strong>Livello di esperienza:</strong> {profile.experience}</p>
+              <h3>Il tuo profilo:</h3>
+              {profile.sesso && (
+                <p><strong>Sesso:</strong> {profile.sesso}</p>
               )}
-              {profile.favouriteDish && (
-                <p><strong>Piatto preferito:</strong> {profile.favouriteDish}</p>
+              {profile.fasciaEta && (
+                <p><strong>Fascia Età:</strong> {profile.fasciaEta}</p>
               )}
-              {profile.dietaryPref && (
-                <p><strong>Preferenze dietetiche:</strong> {profile.dietaryPref}</p>
+              {profile.titoloStudio && (
+                <p><strong>Titolo di studio:</strong> {profile.titoloStudio}</p>
               )}
-              {profile.region && (
-                <p><strong>Regione di interesse:</strong> {profile.region}</p>
+              {profile.areaGeografica && (
+                <p><strong>Area Geografica:</strong> {profile.areaGeografica}</p>
+              )}
+              {profile.rapportoCibo && (
+                <p><strong>Rapporto col cibo:</strong> {profile.rapportoCibo}</p>
               )}
             </div>
           )}
@@ -110,16 +119,37 @@ export default function Survey({ duration, profile, output, onRestart }) {
             </>
           )}
 
-          <h3>Lascia un feedback 💭</h3>
-          <p style={{ fontSize: '0.95rem', color: '#777', textAlign: 'left', marginBottom: '0.5rem' }}>
-            Raccontaci cosa ne pensi della tua esperienza con Azzurra
-          </p>
+          <h3>Valuta l'esperienza</h3>
+          <div style={{ display: 'flex', justifyContent: 'center', gap: '0.5rem', marginBottom: '1.5rem' }}>
+            {[1, 2, 3, 4, 5].map((star) => (
+              <button
+                key={star}
+                type="button"
+                onClick={() => setRating(star)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  fontSize: '2.5rem',
+                  cursor: 'pointer',
+                  color: star <= rating ? '#016fab' : '#ccc',
+                  padding: '0',
+                  margin: '0',
+                  transition: 'color 0.2s ease, transform 0.2s ease'
+                }}
+                onMouseOver={(e) => e.currentTarget.style.transform = 'scale(1.2)'}
+                onMouseOut={(e) => e.currentTarget.style.transform = 'scale(1)'}
+              >
+                ★
+              </button>
+            ))}
+          </div>
+
+          <h3>Lascia un commento (opzionale)</h3>
           <textarea
             value={feedback}
             onChange={(e) => setFeedback(e.target.value)}
-            placeholder="Scrivi qui i tuoi commenti, suggerimenti o impressioni..."
+            placeholder="Scrivi qui eventuali commenti, suggerimenti o impressioni..."
             rows={4}
-            required
           />
           <button 
             type="button" 
@@ -137,10 +167,10 @@ export default function Survey({ duration, profile, output, onRestart }) {
             type="button" 
             onClick={onRestart}
             disabled={isSubmitting}
-            style={{ 
+            style={{
               background: 'transparent',
-              color: '#764ba2',
-              border: '2px solid #764ba2',
+              color: '#016fab',
+              border: '2px solid #016fab',
               marginTop: '1rem',
               opacity: isSubmitting ? 0.6 : 1,
               cursor: isSubmitting ? 'not-allowed' : 'pointer'
