@@ -13,6 +13,7 @@ export function AzzurraAvatar({ onFinish }) {
     isConnected,
     isTalking,
     isListening,
+    isMuted,
     error,
     conversationHistory,
     connect,
@@ -20,7 +21,8 @@ export function AzzurraAvatar({ onFinish }) {
     attachVideo,
     startVoiceChat,
     sendMessage,
-    interrupt
+    interrupt,
+    toggleMute
   } = useAzzurra();
 
   // Collega il video element alla sessione LiveAvatar
@@ -82,8 +84,9 @@ export function AzzurraAvatar({ onFinish }) {
         {isConnected && (
           <div className="status-bar">
             {isTalking && <span className="status talking">🗣️ Azzurra sta parlando</span>}
-            {isListening && <span className="status listening">🎤 Ti sto ascoltando</span>}
-            {!isTalking && !isListening && <span className="status ready">✨ Pronta</span>}
+            {isListening && !isMuted && <span className="status listening">🎤 Ti sto ascoltando</span>}
+            {isMuted && !isTalking && <span className="status muted">🔇 Microfono disattivato</span>}
+            {!isTalking && !isListening && !isMuted && <span className="status ready">✨ Pronta</span>}
           </div>
         )}
       </div>
@@ -108,20 +111,28 @@ export function AzzurraAvatar({ onFinish }) {
         ) : (
           <>
             {!voiceChatActive ? (
-              <button 
+              <button
                 onClick={handleStartVoiceChat}
                 className="btn btn-voice"
               >
                 🎤 Avvia conversazione vocale
               </button>
             ) : (
-              <button 
-                onClick={interrupt}
-                className="btn btn-interrupt"
-                disabled={!isTalking}
-              >
-                ✋ Interrompi
-              </button>
+              <>
+                <button
+                  onClick={toggleMute}
+                  className={`btn ${isMuted ? 'btn-unmute' : 'btn-mute'}`}
+                >
+                  {isMuted ? '🎤 Attiva microfono' : '🔇 Muta microfono'}
+                </button>
+                <button
+                  onClick={interrupt}
+                  className="btn btn-interrupt"
+                  disabled={!isTalking}
+                >
+                  ✋ Interrompi
+                </button>
+              </>
             )}
             
             <button 

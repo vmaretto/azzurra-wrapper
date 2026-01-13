@@ -12,6 +12,7 @@ export function useAzzurra() {
   const [isConnected, setIsConnected] = useState(false);
   const [isTalking, setIsTalking] = useState(false);
   const [isListening, setIsListening] = useState(false);
+  const [isMuted, setIsMuted] = useState(false);
   const [error, setError] = useState(null);
   const [mediaElement, setMediaElement] = useState(null);
   const [conversationHistory, setConversationHistory] = useState([]);
@@ -98,11 +99,17 @@ export function useAzzurra() {
       session.on(AgentEventsEnum.AVATAR_SPEAK_STARTED, () => {
         console.log('Avatar started talking');
         setIsTalking(true);
+        // Auto-mute microfono quando avatar parla per evitare interferenze
+        session.stopListening();
+        setIsMuted(true);
       });
 
       session.on(AgentEventsEnum.AVATAR_SPEAK_ENDED, () => {
         console.log('Avatar stopped talking');
         setIsTalking(false);
+        // Auto-unmute quando avatar finisce di parlare
+        session.startListening();
+        setIsMuted(false);
       });
 
       session.on(AgentEventsEnum.USER_SPEAK_STARTED, () => {
@@ -224,6 +231,21 @@ export function useAzzurra() {
     }
   }, []);
 
+  // Toggle mute microfono
+  const toggleMute = useCallback(() => {
+    if (!sessionRef.current || !isConnected) return;
+
+    if (isMuted) {
+      sessionRef.current.startListening();
+      setIsMuted(false);
+      console.log('Microphone unmuted');
+    } else {
+      sessionRef.current.stopListening();
+      setIsMuted(true);
+      console.log('Microphone muted');
+    }
+  }, [isConnected, isMuted]);
+
   // Disconnetti
   const disconnect = useCallback(async () => {
     if (!sessionRef.current) return;
@@ -254,6 +276,7 @@ export function useAzzurra() {
     isConnected,
     isTalking,
     isListening,
+    isMuted,
     error,
     mediaElement,
     conversationHistory,
@@ -265,6 +288,7 @@ export function useAzzurra() {
     startVoiceChat,
     stopVoiceChat,
     sendMessage,
-    interrupt
+    interrupt,
+    toggleMute
   };
 }

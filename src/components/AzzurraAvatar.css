@@ -118,6 +118,11 @@
   color: white;
 }
 
+.status.muted {
+  background: rgba(108, 117, 125, 0.3);
+  color: #adb5bd;
+}
+
 @keyframes pulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.6; }
@@ -181,6 +186,26 @@
 .btn-interrupt {
   background: #ffd93d;
   color: #333;
+}
+
+.btn-mute {
+  background: linear-gradient(135deg, #6c757d 0%, #495057 100%);
+  color: white;
+}
+
+.btn-mute:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 5px 20px rgba(108, 117, 125, 0.4);
+}
+
+.btn-unmute {
+  background: linear-gradient(135deg, #28a745 0%, #218838 100%);
+  color: white;
+}
+
+.btn-unmute:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 5px 20px rgba(40, 167, 69, 0.4);
 }
 
 .btn-disconnect {
