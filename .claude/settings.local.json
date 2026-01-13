@@ -16,7 +16,9 @@
       "WebFetch(domain:help.heygen.com)",
       "Bash(npm uninstall:*)",
       "Bash(npm run build:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(python3:*)",
+      "Bash(node scripts/import-recipes.js:*)"
     ]
   }
 }

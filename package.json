@@ -12,6 +12,11 @@
     "@anthropic-ai/sdk": "^0.71.2",
     "@heygen/liveavatar-web-sdk": "^0.0.10",
     "@neondatabase/serverless": "^0.9.0",
+    "@supabase/supabase-js": "^2.90.1",
+    "csv-parse": "^6.1.0",
+    "csv-parser": "^3.2.0",
+    "dotenv": "^17.2.3",
+    "openai": "^6.16.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0"
   },
