@@ -24,6 +24,7 @@ export default async function handler(req, res) {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
+        mode: 'CUSTOM',
         avatar_id: AVATAR_ID
       })
     });
