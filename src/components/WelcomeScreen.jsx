@@ -10,7 +10,19 @@ export default function WelcomeScreen({ onNext }) {
   return (
     <div className="screen">
       <div className="card">
-        <h1>Benvenuto in Azzurra 🌿</h1>
+        <img
+          src="/logo-azzurra.png"
+          alt="Azzurra Logo"
+          style={{
+            width: '100px',
+            height: 'auto',
+            marginBottom: '1rem',
+            display: 'block',
+            marginLeft: 'auto',
+            marginRight: 'auto'
+          }}
+        />
+        <h1>Benvenuto in Azzurra</h1>
         <p style={{ fontSize: '1.15rem', marginTop: '1rem' }}>
           Scopri un'esperienza guidata nella cucina italiana e nella nutrizione mediterranea.
         </p>

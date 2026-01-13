@@ -28,14 +28,14 @@ export default function AzzurraFrame({ src, onFinish }) {
           right: '1.5rem',
           zIndex: 10,
           padding: '0.75rem 1.5rem',
-          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+          background: 'linear-gradient(135deg, #016fab 0%, #014d7a 100%)',
           color: 'white',
           border: 'none',
           borderRadius: '12px',
           cursor: 'pointer',
           fontSize: '1rem',
           fontWeight: '600',
-          boxShadow: '0 4px 15px rgba(102, 126, 234, 0.4)',
+          boxShadow: '0 4px 15px rgba(1, 111, 171, 0.4)',
           transition: 'all 0.3s ease',
           display: 'flex',
           alignItems: 'center',
@@ -43,11 +43,11 @@ export default function AzzurraFrame({ src, onFinish }) {
         }}
         onMouseOver={(e) => {
           e.currentTarget.style.transform = 'translateY(-2px)';
-          e.currentTarget.style.boxShadow = '0 6px 20px rgba(102, 126, 234, 0.6)';
+          e.currentTarget.style.boxShadow = '0 6px 20px rgba(1, 111, 171, 0.6)';
         }}
         onMouseOut={(e) => {
           e.currentTarget.style.transform = 'translateY(0)';
-          e.currentTarget.style.boxShadow = '0 4px 15px rgba(102, 126, 234, 0.4)';
+          e.currentTarget.style.boxShadow = '0 4px 15px rgba(1, 111, 171, 0.4)';
         }}
       >
         Esci ✕

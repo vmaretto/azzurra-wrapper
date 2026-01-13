@@ -40,7 +40,7 @@ export default function SuccessModal({ isOpen, onClose, message }) {
       >
         <div style={{ fontSize: '4rem', marginBottom: '1rem' }}>🎉</div>
         <h2 style={{
-          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+          background: 'linear-gradient(135deg, #016fab 0%, #014d7a 100%)',
           WebkitBackgroundClip: 'text',
           WebkitTextFillColor: 'transparent',
           backgroundClip: 'text',
@@ -61,7 +61,7 @@ export default function SuccessModal({ isOpen, onClose, message }) {
         <button
           onClick={onClose}
           style={{
-            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+            background: 'linear-gradient(135deg, #016fab 0%, #014d7a 100%)',
             color: 'white',
             border: 'none',
             padding: '1rem 2.5rem',
@@ -69,18 +69,18 @@ export default function SuccessModal({ isOpen, onClose, message }) {
             fontSize: '1.1rem',
             fontWeight: '600',
             cursor: 'pointer',
-            boxShadow: '0 4px 15px rgba(102, 126, 234, 0.4)',
+            boxShadow: '0 4px 15px rgba(1, 111, 171, 0.4)',
             transition: 'all 0.3s ease',
             textTransform: 'uppercase',
             letterSpacing: '0.5px'
           }}
           onMouseOver={(e) => {
             e.currentTarget.style.transform = 'translateY(-2px)';
-            e.currentTarget.style.boxShadow = '0 6px 20px rgba(102, 126, 234, 0.6)';
+            e.currentTarget.style.boxShadow = '0 6px 20px rgba(1, 111, 171, 0.6)';
           }}
           onMouseOut={(e) => {
             e.currentTarget.style.transform = 'translateY(0)';
-            e.currentTarget.style.boxShadow = '0 4px 15px rgba(102, 126, 234, 0.4)';
+            e.currentTarget.style.boxShadow = '0 4px 15px rgba(1, 111, 171, 0.4)';
           }}
         >
           Chiudi
