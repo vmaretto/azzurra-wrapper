@@ -55,12 +55,19 @@ export function useAzzurra() {
 
       const session = sessionRef.current;
 
+      // Messaggio di benvenuto
+      const WELCOME_MESSAGE = "Ciao sono Azzurra, l'avatar digitale di ECI, l'enciclopedia della Cucina Italiana, messo a punto da CREA, l'ente Italiano di ricerca sull'agroalimentare, con gli esperti di FIB per accompagnarti nell'affascinante mondo dell'alimentazione italiana. Oggi si parte per un viaggio all'insegna della dolcezza! Iniziamo!";
+
       // Event listeners - Sessione
       session.on(SessionEvent.SESSION_STATE_CHANGED, (state) => {
         console.log('Session state changed:', state);
         if (state === SessionState.CONNECTED) {
           setIsConnected(true);
           setIsLoading(false);
+          // Fai recitare il messaggio di benvenuto
+          setTimeout(() => {
+            session.repeat(WELCOME_MESSAGE);
+          }, 500);
         } else if (state === SessionState.DISCONNECTED) {
           setIsConnected(false);
         }
