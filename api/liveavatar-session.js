@@ -43,8 +43,9 @@ export default async function handler(req, res) {
       });
     }
 
-    // Verifica struttura risposta
-    if (!data.session_token) {
+    // Verifica struttura risposta (data è annidato: data.data.session_token)
+    const sessionData = data.data;
+    if (!sessionData || !sessionData.session_token) {
       console.error('Unexpected LiveAvatar response structure:', data);
       return res.status(500).json({
         error: 'Unexpected response from LiveAvatar API'
@@ -52,8 +53,8 @@ export default async function handler(req, res) {
     }
 
     res.status(200).json({
-      sessionToken: data.session_token,
-      sessionId: data.session_id
+      sessionToken: sessionData.session_token,
+      sessionId: sessionData.session_id
     });
   } catch (error) {
     console.error('LiveAvatar session error:', error);
