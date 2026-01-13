@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import WelcomeScreen from './components/WelcomeScreen.jsx';
 import ProfileForm from './components/ProfileForm.jsx';
-import AzzurraFrame from './components/AzzurraFrame.jsx';
+import AzzurraAvatar from './components/AzzurraAvatar.jsx';
 import Survey from './components/Survey.jsx';
 
 export default function App() {
@@ -38,8 +38,7 @@ export default function App() {
         />
       )}
       {step === 'azzurra' && (
-        <AzzurraFrame
-          src="https://dashboard-demo.posti.world/azzurra/v0.6/"
+        <AzzurraAvatar
           onFinish={(output) => {
             setAzzurraOutput(output);
             setStep('survey');
