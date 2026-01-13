@@ -17,6 +17,10 @@ export function useAzzurra() {
   const [conversationHistory, setConversationHistory] = useState([]);
 
   const sessionRef = useRef(null);
+  const welcomeSentRef = useRef(false);
+
+  // Messaggio di benvenuto
+  const WELCOME_MESSAGE = "Ciao sono Azzurra, l'avatar digitale di ECI, l'enciclopedia della Cucina Italiana, messo a punto da CREA, l'ente Italiano di ricerca sull'agroalimentare, con gli esperti di FIB per accompagnarti nell'affascinante mondo dell'alimentazione italiana. Oggi si parte per un viaggio all'insegna della dolcezza! Iniziamo!";
 
   // Ottieni session token da LiveAvatar via backend
   const getSessionToken = async () => {
@@ -54,9 +58,7 @@ export function useAzzurra() {
       });
 
       const session = sessionRef.current;
-
-      // Messaggio di benvenuto
-      const WELCOME_MESSAGE = "Ciao sono Azzurra, l'avatar digitale di ECI, l'enciclopedia della Cucina Italiana, messo a punto da CREA, l'ente Italiano di ricerca sull'agroalimentare, con gli esperti di FIB per accompagnarti nell'affascinante mondo dell'alimentazione italiana. Oggi si parte per un viaggio all'insegna della dolcezza! Iniziamo!";
+      welcomeSentRef.current = false;
 
       // Event listeners - Sessione
       session.on(SessionEvent.SESSION_STATE_CHANGED, (state) => {
@@ -64,10 +66,6 @@ export function useAzzurra() {
         if (state === SessionState.CONNECTED) {
           setIsConnected(true);
           setIsLoading(false);
-          // Fai recitare il messaggio di benvenuto
-          setTimeout(() => {
-            session.repeat(WELCOME_MESSAGE);
-          }, 500);
         } else if (state === SessionState.DISCONNECTED) {
           setIsConnected(false);
         }
@@ -75,6 +73,19 @@ export function useAzzurra() {
 
       session.on(SessionEvent.SESSION_STREAM_READY, () => {
         console.log('Stream ready');
+        // Invia messaggio di benvenuto quando lo stream è pronto
+        if (!welcomeSentRef.current) {
+          welcomeSentRef.current = true;
+          setTimeout(() => {
+            console.log('Sending welcome message');
+            try {
+              session.repeat(WELCOME_MESSAGE);
+              console.log('Welcome message sent successfully');
+            } catch (err) {
+              console.error('Error sending welcome message:', err);
+            }
+          }, 1000);
+        }
       });
 
       session.on(SessionEvent.SESSION_DISCONNECTED, (reason) => {
@@ -105,8 +116,12 @@ export function useAzzurra() {
 
       // Gestione trascrizione utente (da voice chat)
       session.on(AgentEventsEnum.USER_TRANSCRIPTION, async (event) => {
-        const userMessage = event.text;
-        if (!userMessage) return;
+        console.log('USER_TRANSCRIPTION event received:', event);
+        const userMessage = event.text || event.transcript;
+        if (!userMessage) {
+          console.log('No text in transcription event');
+          return;
+        }
 
         console.log('User message:', userMessage);
 
@@ -122,11 +137,20 @@ export function useAzzurra() {
           setConversationHistory(prev => [...prev, { role: 'assistant', content: reply }]);
 
           // Fai parlare Azzurra (repeat per CUSTOM mode)
-          session.repeat(reply);
+          try {
+            session.repeat(reply);
+            console.log('Reply sent to avatar');
+          } catch (repeatErr) {
+            console.error('Error sending reply to avatar:', repeatErr);
+          }
         } catch (err) {
           console.error('Error getting response:', err);
           // Risposta di fallback
-          session.repeat("Scusami, non ho capito bene. Puoi ripetere?");
+          try {
+            session.repeat("Scusami, non ho capito bene. Puoi ripetere?");
+          } catch (fallbackErr) {
+            console.error('Error sending fallback:', fallbackErr);
+          }
         }
       });
 
