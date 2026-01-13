@@ -79,11 +79,8 @@ export function useAzzurra() {
           setTimeout(() => {
             console.log('Sending welcome message');
             try {
-              // Usa speak per far parlare l'avatar
-              session.speak({
-                text: WELCOME_MESSAGE,
-                task_type: 'repeat'
-              });
+              // Usa repeat per far parlare l'avatar in FULL mode
+              session.repeat(WELCOME_MESSAGE);
               console.log('Welcome message sent successfully');
             } catch (err) {
               console.error('Error sending welcome message:', err);
@@ -140,12 +137,9 @@ export function useAzzurra() {
           // Aggiorna history
           setConversationHistory(prev => [...prev, { role: 'assistant', content: reply }]);
 
-          // Fai parlare Azzurra con speak()
+          // Fai parlare Azzurra con repeat()
           try {
-            session.speak({
-              text: reply,
-              task_type: 'repeat'
-            });
+            session.repeat(reply);
             console.log('Reply sent to avatar');
           } catch (speakErr) {
             console.error('Error sending reply to avatar:', speakErr);
@@ -154,10 +148,7 @@ export function useAzzurra() {
           console.error('Error getting response:', err);
           // Risposta di fallback
           try {
-            session.speak({
-              text: "Scusami, non ho capito bene. Puoi ripetere?",
-              task_type: 'repeat'
-            });
+            session.repeat("Scusami, non ho capito bene. Puoi ripetere?");
           } catch (fallbackErr) {
             console.error('Error sending fallback:', fallbackErr);
           }
@@ -215,11 +206,8 @@ export function useAzzurra() {
       // Aggiorna history
       setConversationHistory(prev => [...prev, { role: 'assistant', content: reply }]);
 
-      // Fai parlare Azzurra con speak()
-      sessionRef.current.speak({
-        text: reply,
-        task_type: 'repeat'
-      });
+      // Fai parlare Azzurra con repeat()
+      sessionRef.current.repeat(reply);
     } catch (err) {
       console.error('Send message error:', err);
       setError(err.message);
