@@ -1,14 +1,11 @@
 // src/hooks/useAzzurra.js
 import { useState, useRef, useCallback, useEffect } from 'react';
-import StreamingAvatar, { 
-  AvatarQuality, 
-  StreamingEvents, 
-  TaskType,
-  TaskMode,
-  VoiceEmotion 
-} from '@heygen/streaming-avatar';
-
-const AVATAR_ID = 'eeb15a59-7cf3-4ac6-8bf6-4dc0dc61871c';
+import {
+  LiveAvatarSession,
+  SessionEvent,
+  SessionState,
+  AgentEventsEnum
+} from '@heygen/liveavatar-web-sdk';
 
 export function useAzzurra() {
   const [isLoading, setIsLoading] = useState(false);
@@ -16,17 +13,17 @@ export function useAzzurra() {
   const [isTalking, setIsTalking] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [error, setError] = useState(null);
-  const [stream, setStream] = useState(null);
+  const [mediaElement, setMediaElement] = useState(null);
   const [conversationHistory, setConversationHistory] = useState([]);
-  
-  const avatarRef = useRef(null);
 
-  // Ottieni token HeyGen dal backend
-  const getHeyGenToken = async () => {
-    const response = await fetch('/api/heygen-token', { method: 'POST' });
+  const sessionRef = useRef(null);
+
+  // Ottieni session token da LiveAvatar via backend
+  const getSessionToken = async () => {
+    const response = await fetch('/api/liveavatar-session', { method: 'POST' });
     const data = await response.json();
     if (data.error) throw new Error(data.error);
-    return data.token;
+    return data.sessionToken;
   };
 
   // Invia messaggio a Claude e ricevi risposta
@@ -47,89 +44,87 @@ export function useAzzurra() {
     setError(null);
 
     try {
-      const token = await getHeyGenToken();
-      
-      avatarRef.current = new StreamingAvatar({ token });
+      const sessionToken = await getSessionToken();
 
-      // Event listeners
-      avatarRef.current.on(StreamingEvents.STREAM_READY, (event) => {
-        console.log('Stream ready');
-        setStream(event.detail);
-        setIsConnected(true);
-        setIsLoading(false);
+      // Crea sessione LiveAvatar con voice chat abilitato
+      sessionRef.current = new LiveAvatarSession(sessionToken, {
+        voiceChat: {
+          defaultMuted: false
+        }
       });
 
-      avatarRef.current.on(StreamingEvents.AVATAR_START_TALKING, () => {
+      const session = sessionRef.current;
+
+      // Event listeners - Sessione
+      session.on(SessionEvent.SESSION_STATE_CHANGED, (state) => {
+        console.log('Session state changed:', state);
+        if (state === SessionState.CONNECTED) {
+          setIsConnected(true);
+          setIsLoading(false);
+        } else if (state === SessionState.DISCONNECTED) {
+          setIsConnected(false);
+        }
+      });
+
+      session.on(SessionEvent.SESSION_STREAM_READY, () => {
+        console.log('Stream ready');
+      });
+
+      session.on(SessionEvent.SESSION_DISCONNECTED, (reason) => {
+        console.log('Session disconnected:', reason);
+        setIsConnected(false);
+      });
+
+      // Event listeners - Agent (avatar e utente)
+      session.on(AgentEventsEnum.AVATAR_SPEAK_STARTED, () => {
         console.log('Avatar started talking');
         setIsTalking(true);
       });
 
-      avatarRef.current.on(StreamingEvents.AVATAR_STOP_TALKING, () => {
+      session.on(AgentEventsEnum.AVATAR_SPEAK_ENDED, () => {
         console.log('Avatar stopped talking');
         setIsTalking(false);
       });
 
-      avatarRef.current.on(StreamingEvents.USER_START, () => {
+      session.on(AgentEventsEnum.USER_SPEAK_STARTED, () => {
         console.log('User started talking');
         setIsListening(true);
       });
 
-      avatarRef.current.on(StreamingEvents.USER_STOP, () => {
+      session.on(AgentEventsEnum.USER_SPEAK_ENDED, () => {
         console.log('User stopped talking');
         setIsListening(false);
       });
 
-      avatarRef.current.on(StreamingEvents.STREAM_DISCONNECTED, () => {
-        console.log('Stream disconnected');
-        setIsConnected(false);
-        setStream(null);
-      });
-
-      // Gestione messaggi utente (da voice chat)
-      avatarRef.current.on(StreamingEvents.USER_END_MESSAGE, async (event) => {
-        const userMessage = event.detail?.message;
+      // Gestione trascrizione utente (da voice chat)
+      session.on(AgentEventsEnum.USER_TRANSCRIPTION, async (event) => {
+        const userMessage = event.text;
         if (!userMessage) return;
-        
+
         console.log('User message:', userMessage);
-        
+
         // Aggiorna history
         setConversationHistory(prev => [...prev, { role: 'user', content: userMessage }]);
-        
+
         try {
           // Ottieni risposta da Claude
           const reply = await getChatResponse(userMessage);
           console.log('Claude reply:', reply);
-          
+
           // Aggiorna history
           setConversationHistory(prev => [...prev, { role: 'assistant', content: reply }]);
-          
-          // Fai parlare Azzurra
-          await avatarRef.current.speak({
-            text: reply,
-            task_type: TaskType.REPEAT,
-            taskMode: TaskMode.ASYNC
-          });
+
+          // Fai parlare Azzurra (repeat per CUSTOM mode)
+          session.repeat(reply);
         } catch (err) {
           console.error('Error getting response:', err);
           // Risposta di fallback
-          await avatarRef.current.speak({
-            text: "Scusami, non ho capito bene. Puoi ripetere?",
-            task_type: TaskType.REPEAT
-          });
+          session.repeat("Scusami, non ho capito bene. Puoi ripetere?");
         }
       });
 
       // Avvia sessione
-      await avatarRef.current.createStartAvatar({
-        quality: AvatarQuality.High,
-        avatarName: AVATAR_ID,
-        voice: {
-          rate: 1.0,
-          emotion: VoiceEmotion.FRIENDLY
-        },
-        language: 'it',
-        activityIdleTimeout: 300 // 5 minuti
-      });
+      await session.start();
 
     } catch (err) {
       console.error('Connection error:', err);
@@ -138,15 +133,20 @@ export function useAzzurra() {
     }
   }, [conversationHistory]);
 
-  // Avvia voice chat
+  // Collega il video element alla sessione
+  const attachVideo = useCallback((videoElement) => {
+    if (sessionRef.current && videoElement) {
+      sessionRef.current.attach(videoElement);
+      setMediaElement(videoElement);
+    }
+  }, []);
+
+  // Avvia voice chat (inizia ad ascoltare)
   const startVoiceChat = useCallback(async () => {
-    if (!avatarRef.current || !isConnected) return;
-    
+    if (!sessionRef.current || !isConnected) return;
+
     try {
-      await avatarRef.current.startVoiceChat({
-        useSilencePrompt: false,
-        isInputAudioMuted: false
-      });
+      sessionRef.current.startListening();
       console.log('Voice chat started');
     } catch (err) {
       console.error('Voice chat error:', err);
@@ -154,25 +154,28 @@ export function useAzzurra() {
     }
   }, [isConnected]);
 
+  // Ferma voice chat
+  const stopVoiceChat = useCallback(() => {
+    if (!sessionRef.current) return;
+    sessionRef.current.stopListening();
+    console.log('Voice chat stopped');
+  }, []);
+
   // Invia messaggio testuale
   const sendMessage = useCallback(async (text) => {
-    if (!avatarRef.current || !isConnected || !text.trim()) return;
-    
+    if (!sessionRef.current || !isConnected || !text.trim()) return;
+
     // Aggiorna history
     setConversationHistory(prev => [...prev, { role: 'user', content: text }]);
-    
+
     try {
       const reply = await getChatResponse(text);
-      
+
       // Aggiorna history
       setConversationHistory(prev => [...prev, { role: 'assistant', content: reply }]);
-      
-      // Fai parlare Azzurra
-      await avatarRef.current.speak({
-        text: reply,
-        task_type: TaskType.REPEAT,
-        taskMode: TaskMode.ASYNC
-      });
+
+      // Fai parlare Azzurra (repeat per CUSTOM mode)
+      sessionRef.current.repeat(reply);
     } catch (err) {
       console.error('Send message error:', err);
       setError(err.message);
@@ -180,10 +183,10 @@ export function useAzzurra() {
   }, [isConnected, conversationHistory]);
 
   // Interrompi avatar
-  const interrupt = useCallback(async () => {
-    if (!avatarRef.current) return;
+  const interrupt = useCallback(() => {
+    if (!sessionRef.current) return;
     try {
-      await avatarRef.current.interrupt();
+      sessionRef.current.interrupt();
     } catch (err) {
       console.error('Interrupt error:', err);
     }
@@ -191,13 +194,13 @@ export function useAzzurra() {
 
   // Disconnetti
   const disconnect = useCallback(async () => {
-    if (!avatarRef.current) return;
-    
+    if (!sessionRef.current) return;
+
     try {
-      await avatarRef.current.stopAvatar();
-      avatarRef.current = null;
+      await sessionRef.current.stop();
+      sessionRef.current = null;
       setIsConnected(false);
-      setStream(null);
+      setMediaElement(null);
       setConversationHistory([]);
     } catch (err) {
       console.error('Disconnect error:', err);
@@ -207,8 +210,8 @@ export function useAzzurra() {
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      if (avatarRef.current) {
-        avatarRef.current.stopAvatar().catch(console.error);
+      if (sessionRef.current) {
+        sessionRef.current.stop().catch(console.error);
       }
     };
   }, []);
@@ -220,13 +223,15 @@ export function useAzzurra() {
     isTalking,
     isListening,
     error,
-    stream,
+    mediaElement,
     conversationHistory,
-    
+
     // Actions
     connect,
     disconnect,
+    attachVideo,
     startVoiceChat,
+    stopVoiceChat,
     sendMessage,
     interrupt
   };

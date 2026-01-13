@@ -14,24 +14,21 @@ export function AzzurraAvatar({ onFinish }) {
     isTalking,
     isListening,
     error,
-    stream,
     conversationHistory,
     connect,
     disconnect,
+    attachVideo,
     startVoiceChat,
     sendMessage,
     interrupt
   } = useAzzurra();
 
-  // Collega lo stream al video element
+  // Collega il video element alla sessione LiveAvatar
   useEffect(() => {
-    if (stream && videoRef.current) {
-      videoRef.current.srcObject = stream;
-      videoRef.current.onloadedmetadata = () => {
-        videoRef.current.play().catch(console.error);
-      };
+    if (isConnected && videoRef.current) {
+      attachVideo(videoRef.current);
     }
-  }, [stream]);
+  }, [isConnected, attachVideo]);
 
   // Avvia voice chat
   const handleStartVoiceChat = async () => {
