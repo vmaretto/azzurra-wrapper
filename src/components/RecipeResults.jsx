@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import QRCode from 'qrcode';
 
 /**
  * RecipeResults mostra le ricette discusse durante la conversazione
@@ -7,6 +8,8 @@ import React, { useState, useEffect } from 'react';
 export default function RecipeResults({ conversationHistory }) {
   const [recipes, setRecipes] = useState([]);
   const [pdfBase64, setPdfBase64] = useState(null);
+  const [pdfUrl, setPdfUrl] = useState(null);
+  const [qrCodeUrl, setQrCodeUrl] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -31,6 +34,17 @@ export default function RecipeResults({ conversationHistory }) {
         const data = await response.json();
         setRecipes(data.recipes || []);
         setPdfBase64(data.pdfBase64);
+        setPdfUrl(data.pdfUrl);
+
+        // Genera QR code con URL reale del PDF
+        if (data.pdfUrl) {
+          const qrDataUrl = await QRCode.toDataURL(data.pdfUrl, {
+            width: 200,
+            margin: 2,
+            color: { dark: '#016fab', light: '#ffffff' }
+          });
+          setQrCodeUrl(qrDataUrl);
+        }
 
       } catch (err) {
         console.error('Errore:', err);
@@ -93,6 +107,14 @@ export default function RecipeResults({ conversationHistory }) {
           </li>
         ))}
       </ul>
+
+      {/* QR Code per scansione da telefono */}
+      {qrCodeUrl && (
+        <div className="qr-section">
+          <img src={qrCodeUrl} alt="QR Code" className="qr-code" />
+          <p className="qr-caption">Scansiona per scaricare le ricette sul telefono</p>
+        </div>
+      )}
 
       <div className="recipe-actions">
         {pdfBase64 && (

@@ -245,6 +245,7 @@ export default async function handler(req, res) {
       return res.status(200).json({
         recipes: [],
         pdfBase64: null,
+        pdfUrl: null,
         message: 'Nessuna ricetta trovata nella conversazione'
       });
     }
@@ -252,7 +253,43 @@ export default async function handler(req, res) {
     // Genera PDF
     const pdfBase64 = await generatePDF(recipes);
 
-    // Ritorna lista ricette e PDF
+    // Upload PDF su Supabase Storage per ottenere URL pubblico
+    let pdfUrl = null;
+    if (supabase && pdfBase64) {
+      try {
+        // Converti base64 in buffer
+        const pdfBuffer = Buffer.from(pdfBase64, 'base64');
+
+        // Genera nome file univoco
+        const fileName = `ricette-${Date.now()}-${Math.random().toString(36).substring(7)}.pdf`;
+
+        // Upload su Supabase Storage
+        const { data: uploadData, error: uploadError } = await supabase
+          .storage
+          .from('ricette-pdf')
+          .upload(fileName, pdfBuffer, {
+            contentType: 'application/pdf',
+            cacheControl: '3600'
+          });
+
+        if (uploadError) {
+          console.error('Errore upload PDF:', uploadError);
+        } else {
+          // Ottieni URL pubblico
+          const { data: urlData } = supabase
+            .storage
+            .from('ricette-pdf')
+            .getPublicUrl(fileName);
+
+          pdfUrl = urlData?.publicUrl;
+          console.log('PDF caricato su Storage:', pdfUrl);
+        }
+      } catch (uploadErr) {
+        console.error('Errore durante upload Storage:', uploadErr);
+      }
+    }
+
+    // Ritorna lista ricette, PDF base64 e URL pubblico
     res.status(200).json({
       recipes: recipes.map(r => ({
         titolo: r.titolo,
@@ -261,6 +298,7 @@ export default async function handler(req, res) {
         anno: r.anno
       })),
       pdfBase64,
+      pdfUrl,
       message: `Trovate ${recipes.length} ricette`
     });
 
