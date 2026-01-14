@@ -160,7 +160,12 @@ export function useAzzurra() {
 
       // Event listeners - Utente
       session.on(AgentEventsEnum.USER_SPEAK_STARTED, () => {
-        console.log('User started talking');
+        // Ignora se microfono è muted
+        if (isMutedRef.current) {
+          console.log('🔇 User speak started ignorato (muted)');
+          return;
+        }
+        console.log('🎤 User started talking');
         setIsListening(true);
       });
 
@@ -246,7 +251,12 @@ export function useAzzurra() {
 
       // USER_SPEAK_ENDED: trigger veloce per processare
       session.on(AgentEventsEnum.USER_SPEAK_ENDED, () => {
-        console.log('User stopped talking');
+        // Ignora se microfono è muted
+        if (isMutedRef.current) {
+          console.log('🔇 User speak ended ignorato (muted)');
+          return;
+        }
+        console.log('🎤 User stopped talking');
         setIsListening(false);
 
         // Delay 500ms prima di processare (aspetta ultime trascrizioni)
