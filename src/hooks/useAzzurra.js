@@ -26,6 +26,34 @@ export function useAzzurra() {
   // Messaggio di benvenuto
   const WELCOME_MESSAGE = "Ciao sono Azzurra, l'avatar digitale di ECI, l'enciclopedia della Cucina Italiana, messo a punto da CREA, l'ente Italiano di ricerca sull'agroalimentare, con gli esperti di FIB per accompagnarti nell'affascinante mondo dell'alimentazione italiana. Oggi si parte per un viaggio all'insegna della dolcezza! Iniziamo!";
 
+  // Genera audio TTS e fai parlare l'avatar
+  const speakWithTTS = async (session, text) => {
+    try {
+      console.log('Generating TTS for:', text.substring(0, 50) + '...');
+
+      // Chiama endpoint TTS
+      const response = await fetch('/api/tts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text })
+      });
+
+      if (!response.ok) {
+        throw new Error('TTS request failed');
+      }
+
+      const { audio } = await response.json();
+      console.log('TTS audio received, sending to avatar');
+
+      // Invia audio all'avatar
+      session.repeatAudio(audio);
+      console.log('Audio sent to avatar');
+    } catch (err) {
+      console.error('TTS/Speech error:', err);
+      throw err;
+    }
+  };
+
   // Ottieni session token da LiveAvatar via backend
   const getSessionToken = async () => {
     const response = await fetch('/api/liveavatar-session', { method: 'POST' });
@@ -80,11 +108,11 @@ export function useAzzurra() {
         // Invia messaggio di benvenuto quando lo stream è pronto
         if (!welcomeSentRef.current) {
           welcomeSentRef.current = true;
-          setTimeout(() => {
+          setTimeout(async () => {
             console.log('Sending welcome message');
             try {
-              // Usa repeat per far parlare l'avatar in FULL mode
-              session.repeat(WELCOME_MESSAGE);
+              // Usa TTS + repeatAudio per far parlare l'avatar in CUSTOM mode
+              await speakWithTTS(session, WELCOME_MESSAGE);
               console.log('Welcome message sent successfully');
             } catch (err) {
               console.error('Error sending welcome message:', err);
@@ -128,6 +156,7 @@ export function useAzzurra() {
       // Gestione trascrizione utente (da voice chat) con debounce
       session.on(AgentEventsEnum.USER_TRANSCRIPTION, async (event) => {
         console.log('USER_TRANSCRIPTION event received:', event);
+
         const text = event.text || event.transcript;
         if (!text) {
           console.log('No text in transcription event');
@@ -174,9 +203,9 @@ export function useAzzurra() {
             // Aggiorna history
             setConversationHistory(prev => [...prev, { role: 'assistant', content: reply }]);
 
-            // Fai parlare Azzurra con repeat()
+            // Fai parlare Azzurra con TTS + repeatAudio
             try {
-              session.repeat(reply);
+              await speakWithTTS(session, reply);
               console.log('Reply sent to avatar');
             } catch (speakErr) {
               console.error('Error sending reply to avatar:', speakErr);
@@ -185,7 +214,7 @@ export function useAzzurra() {
             console.error('Error getting response:', err);
             // Risposta di fallback
             try {
-              session.repeat("Scusami, non ho capito bene. Puoi ripetere?");
+              await speakWithTTS(session, "Scusami, non ho capito bene. Puoi ripetere?");
             } catch (fallbackErr) {
               console.error('Error sending fallback:', fallbackErr);
             }
@@ -246,8 +275,8 @@ export function useAzzurra() {
       // Aggiorna history
       setConversationHistory(prev => [...prev, { role: 'assistant', content: reply }]);
 
-      // Fai parlare Azzurra con repeat()
-      sessionRef.current.repeat(reply);
+      // Fai parlare Azzurra con TTS + repeatAudio
+      await speakWithTTS(sessionRef.current, reply);
     } catch (err) {
       console.error('Send message error:', err);
       setError(err.message);

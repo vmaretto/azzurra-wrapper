@@ -24,12 +24,8 @@ export default async function handler(req, res) {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        mode: 'FULL',
-        avatar_id: AVATAR_ID,
-        avatar_persona: {
-          context_id: process.env.LIVEAVATAR_CONTEXT_ID,
-          language: 'it'
-        }
+        mode: 'CUSTOM',
+        avatar_id: AVATAR_ID
       })
     });
 
