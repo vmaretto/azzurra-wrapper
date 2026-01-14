@@ -24,9 +24,8 @@ export default async function handler(req, res) {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        mode: 'FULL',
+        mode: 'CUSTOM',
         avatar_id: AVATAR_ID
-        // NO avatar_persona/context_id = voice chat senza LLM auto-rispondente
       })
     });
 

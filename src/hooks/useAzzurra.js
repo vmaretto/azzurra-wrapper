@@ -3,8 +3,7 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import {
   LiveAvatarSession,
   SessionEvent,
-  SessionState,
-  AgentEventsEnum
+  SessionState
 } from '@heygen/liveavatar-web-sdk';
 
 export function useAzzurra() {
@@ -19,17 +18,23 @@ export function useAzzurra() {
 
   const sessionRef = useRef(null);
   const welcomeSentRef = useRef(false);
-  const transcriptionBufferRef = useRef('');
-  const transcriptionTimeoutRef = useRef(null);
+  const recognitionRef = useRef(null);
   const isProcessingRef = useRef(false);
+  const conversationHistoryRef = useRef([]);
 
   // Messaggio di benvenuto
   const WELCOME_MESSAGE = "Ciao sono Azzurra, l'avatar digitale di ECI, l'enciclopedia della Cucina Italiana, messo a punto da CREA, l'ente Italiano di ricerca sull'agroalimentare, con gli esperti di FIB per accompagnarti nell'affascinante mondo dell'alimentazione italiana. Oggi si parte per un viaggio all'insegna della dolcezza! Iniziamo!";
+
+  // Sync conversationHistory to ref for use in callbacks
+  useEffect(() => {
+    conversationHistoryRef.current = conversationHistory;
+  }, [conversationHistory]);
 
   // Genera audio TTS e fai parlare l'avatar
   const speakWithTTS = async (session, text) => {
     try {
       console.log('Generating TTS for:', text.substring(0, 50) + '...');
+      setIsTalking(true);
 
       // Chiama endpoint TTS
       const response = await fetch('/api/tts', {
@@ -50,8 +55,98 @@ export function useAzzurra() {
       console.log('Audio sent to avatar');
     } catch (err) {
       console.error('TTS/Speech error:', err);
+      setIsTalking(false);
       throw err;
     }
+  };
+
+  // Processa il messaggio utente e genera risposta
+  const processUserMessage = async (userMessage) => {
+    if (!sessionRef.current || isProcessingRef.current) return;
+    if (!userMessage || userMessage.length < 3) {
+      console.log('Message too short, ignoring');
+      return;
+    }
+
+    console.log('Processing user message:', userMessage);
+    isProcessingRef.current = true;
+
+    // Aggiorna history
+    setConversationHistory(prev => [...prev, { role: 'user', content: userMessage }]);
+
+    try {
+      // Ottieni risposta da Claude
+      const reply = await getChatResponse(userMessage);
+      console.log('Claude reply:', reply);
+
+      // Aggiorna history
+      setConversationHistory(prev => [...prev, { role: 'assistant', content: reply }]);
+
+      // Fai parlare Azzurra con TTS
+      await speakWithTTS(sessionRef.current, reply);
+    } catch (err) {
+      console.error('Error getting response:', err);
+      try {
+        await speakWithTTS(sessionRef.current, "Scusami, non ho capito bene. Puoi ripetere?");
+      } catch (fallbackErr) {
+        console.error('Error sending fallback:', fallbackErr);
+      }
+    } finally {
+      isProcessingRef.current = false;
+      setIsTalking(false);
+    }
+  };
+
+  // Configura Web Speech API per riconoscimento vocale
+  const setupSpeechRecognition = () => {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      console.error('Web Speech API not supported');
+      setError('Il tuo browser non supporta il riconoscimento vocale');
+      return null;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.lang = 'it-IT';
+    recognition.continuous = true;
+    recognition.interimResults = false;
+
+    recognition.onstart = () => {
+      console.log('Speech recognition started');
+      setIsListening(true);
+    };
+
+    recognition.onend = () => {
+      console.log('Speech recognition ended');
+      setIsListening(false);
+      // Riavvia automaticamente se non mutato e connesso
+      if (!isMuted && sessionRef.current && recognitionRef.current) {
+        try {
+          recognitionRef.current.start();
+        } catch (e) {
+          console.log('Recognition restart skipped:', e.message);
+        }
+      }
+    };
+
+    recognition.onresult = (event) => {
+      const last = event.results.length - 1;
+      const transcript = event.results[last][0].transcript.trim();
+      console.log('Transcript:', transcript);
+
+      if (transcript) {
+        processUserMessage(transcript);
+      }
+    };
+
+    recognition.onerror = (event) => {
+      console.error('Speech recognition error:', event.error);
+      if (event.error !== 'no-speech' && event.error !== 'aborted') {
+        setError('Errore riconoscimento vocale: ' + event.error);
+      }
+    };
+
+    return recognition;
   };
 
   // Ottieni session token da LiveAvatar via backend
@@ -67,14 +162,14 @@ export function useAzzurra() {
     const response = await fetch('/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message, conversationHistory })
+      body: JSON.stringify({ message, conversationHistory: conversationHistoryRef.current })
     });
     const data = await response.json();
     if (data.error) throw new Error(data.error);
     return data.reply;
   };
 
-  // Inizializza la sessione avatar
+  // Inizializza la sessione avatar (CUSTOM mode)
   const connect = useCallback(async () => {
     setIsLoading(true);
     setError(null);
@@ -82,12 +177,8 @@ export function useAzzurra() {
     try {
       const sessionToken = await getSessionToken();
 
-      // Crea sessione LiveAvatar con voice chat abilitato
-      sessionRef.current = new LiveAvatarSession(sessionToken, {
-        voiceChat: {
-          defaultMuted: false
-        }
-      });
+      // Crea sessione LiveAvatar in CUSTOM mode (no voice chat SDK)
+      sessionRef.current = new LiveAvatarSession(sessionToken);
 
       const session = sessionRef.current;
       welcomeSentRef.current = false;
@@ -111,7 +202,6 @@ export function useAzzurra() {
           setTimeout(async () => {
             console.log('Sending welcome message');
             try {
-              // Usa TTS + repeatAudio per far parlare l'avatar in CUSTOM mode
               await speakWithTTS(session, WELCOME_MESSAGE);
               console.log('Welcome message sent successfully');
             } catch (err) {
@@ -126,104 +216,6 @@ export function useAzzurra() {
         setIsConnected(false);
       });
 
-      // Event listeners - Agent (avatar e utente)
-      session.on(AgentEventsEnum.AVATAR_SPEAK_STARTED, () => {
-        console.log('Avatar started talking');
-        setIsTalking(true);
-        // Auto-mute microfono quando avatar parla per evitare interferenze
-        session.stopListening();
-        setIsMuted(true);
-      });
-
-      session.on(AgentEventsEnum.AVATAR_SPEAK_ENDED, () => {
-        console.log('Avatar stopped talking');
-        setIsTalking(false);
-        // Auto-unmute quando avatar finisce di parlare
-        session.startListening();
-        setIsMuted(false);
-      });
-
-      session.on(AgentEventsEnum.USER_SPEAK_STARTED, () => {
-        console.log('User started talking');
-        setIsListening(true);
-      });
-
-      session.on(AgentEventsEnum.USER_SPEAK_ENDED, () => {
-        console.log('User stopped talking');
-        setIsListening(false);
-      });
-
-      // Gestione trascrizione utente (da voice chat) con debounce
-      session.on(AgentEventsEnum.USER_TRANSCRIPTION, async (event) => {
-        console.log('USER_TRANSCRIPTION event received:', event);
-
-        const text = event.text || event.transcript;
-        if (!text) {
-          console.log('No text in transcription event');
-          return;
-        }
-
-        // Se stiamo già processando una risposta, ignora
-        if (isProcessingRef.current) {
-          console.log('Already processing, ignoring transcription');
-          return;
-        }
-
-        // Accumula il testo nel buffer
-        transcriptionBufferRef.current += ' ' + text;
-        transcriptionBufferRef.current = transcriptionBufferRef.current.trim();
-        console.log('Buffer updated:', transcriptionBufferRef.current);
-
-        // Cancella timeout precedente
-        if (transcriptionTimeoutRef.current) {
-          clearTimeout(transcriptionTimeoutRef.current);
-        }
-
-        // Imposta nuovo timeout - processa dopo 1.5 secondi di silenzio
-        transcriptionTimeoutRef.current = setTimeout(async () => {
-          const userMessage = transcriptionBufferRef.current;
-          transcriptionBufferRef.current = ''; // Reset buffer
-
-          if (!userMessage || userMessage.length < 3) {
-            console.log('Message too short, ignoring');
-            return;
-          }
-
-          console.log('Processing complete message:', userMessage);
-          isProcessingRef.current = true;
-
-          // Aggiorna history
-          setConversationHistory(prev => [...prev, { role: 'user', content: userMessage }]);
-
-          try {
-            // Ottieni risposta da Claude
-            const reply = await getChatResponse(userMessage);
-            console.log('Claude reply:', reply);
-
-            // Aggiorna history
-            setConversationHistory(prev => [...prev, { role: 'assistant', content: reply }]);
-
-            // Fai parlare Azzurra con TTS + repeatAudio
-            try {
-              await speakWithTTS(session, reply);
-              console.log('Reply sent to avatar');
-            } catch (speakErr) {
-              console.error('Error sending reply to avatar:', speakErr);
-            }
-          } catch (err) {
-            console.error('Error getting response:', err);
-            // Risposta di fallback
-            try {
-              await speakWithTTS(session, "Scusami, non ho capito bene. Puoi ripetere?");
-            } catch (fallbackErr) {
-              console.error('Error sending fallback:', fallbackErr);
-            }
-          } finally {
-            isProcessingRef.current = false;
-          }
-        }, 1500); // 1.5 secondi di attesa
-      });
-
       // Avvia sessione
       await session.start();
 
@@ -232,7 +224,7 @@ export function useAzzurra() {
       setError(err.message);
       setIsLoading(false);
     }
-  }, [conversationHistory]);
+  }, []);
 
   // Collega il video element alla sessione
   const attachVideo = useCallback((videoElement) => {
@@ -242,13 +234,21 @@ export function useAzzurra() {
     }
   }, []);
 
-  // Avvia voice chat (inizia ad ascoltare)
+  // Avvia voice chat (Web Speech API)
   const startVoiceChat = useCallback(async () => {
     if (!sessionRef.current || !isConnected) return;
 
     try {
-      sessionRef.current.startListening();
-      console.log('Voice chat started');
+      // Inizializza Web Speech API se non già fatto
+      if (!recognitionRef.current) {
+        recognitionRef.current = setupSpeechRecognition();
+      }
+
+      if (recognitionRef.current) {
+        recognitionRef.current.start();
+        setIsMuted(false);
+        console.log('Voice chat started (Web Speech API)');
+      }
     } catch (err) {
       console.error('Voice chat error:', err);
       setError(err.message);
@@ -257,8 +257,11 @@ export function useAzzurra() {
 
   // Ferma voice chat
   const stopVoiceChat = useCallback(() => {
-    if (!sessionRef.current) return;
-    sessionRef.current.stopListening();
+    if (recognitionRef.current) {
+      recognitionRef.current.stop();
+      recognitionRef.current = null;
+    }
+    setIsListening(false);
     console.log('Voice chat stopped');
   }, []);
 
@@ -281,7 +284,7 @@ export function useAzzurra() {
       console.error('Send message error:', err);
       setError(err.message);
     }
-  }, [isConnected, conversationHistory]);
+  }, [isConnected]);
 
   // Interrompi avatar
   const interrupt = useCallback(() => {
@@ -293,29 +296,51 @@ export function useAzzurra() {
     }
   }, []);
 
-  // Toggle mute microfono
+  // Toggle mute microfono (Web Speech API)
   const toggleMute = useCallback(() => {
-    if (!sessionRef.current || !isConnected) return;
+    if (!isConnected) return;
 
     if (isMuted) {
-      sessionRef.current.startListening();
-      setIsMuted(false);
-      console.log('Microphone unmuted');
+      // Unmute: riavvia recognition
+      if (!recognitionRef.current) {
+        recognitionRef.current = setupSpeechRecognition();
+      }
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.start();
+          setIsMuted(false);
+          console.log('Microphone unmuted');
+        } catch (e) {
+          console.log('Already listening');
+        }
+      }
     } else {
-      sessionRef.current.stopListening();
+      // Mute: ferma recognition
+      if (recognitionRef.current) {
+        recognitionRef.current.stop();
+      }
       setIsMuted(true);
+      setIsListening(false);
       console.log('Microphone muted');
     }
   }, [isConnected, isMuted]);
 
   // Disconnetti
   const disconnect = useCallback(async () => {
+    // Ferma Web Speech API
+    if (recognitionRef.current) {
+      recognitionRef.current.stop();
+      recognitionRef.current = null;
+    }
+
     if (!sessionRef.current) return;
 
     try {
       await sessionRef.current.stop();
       sessionRef.current = null;
       setIsConnected(false);
+      setIsListening(false);
+      setIsMuted(false);
       setMediaElement(null);
       setConversationHistory([]);
     } catch (err) {
@@ -326,6 +351,9 @@ export function useAzzurra() {
   // Cleanup on unmount
   useEffect(() => {
     return () => {
+      if (recognitionRef.current) {
+        recognitionRef.current.stop();
+      }
       if (sessionRef.current) {
         sessionRef.current.stop().catch(console.error);
       }
