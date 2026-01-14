@@ -1,13 +1,15 @@
 import React from 'react';
+import FunFacts from './FunFacts.jsx';
 
 /**
  * SuccessModal - Modern modal popup for showing success messages
+ * Include anche le curiosità sui dolci italiani
  */
 export default function SuccessModal({ isOpen, onClose, message }) {
   if (!isOpen) return null;
 
   return (
-    <div 
+    <div
       style={{
         position: 'fixed',
         top: 0,
@@ -19,18 +21,22 @@ export default function SuccessModal({ isOpen, onClose, message }) {
         alignItems: 'center',
         justifyContent: 'center',
         zIndex: 1000,
-        animation: 'fadeIn 0.3s ease-in-out'
+        animation: 'fadeIn 0.3s ease-in-out',
+        overflow: 'auto',
+        padding: '1rem'
       }}
       onClick={onClose}
     >
-      <div 
+      <div
         style={{
           background: 'rgba(255, 255, 255, 0.98)',
           backdropFilter: 'blur(10px)',
           borderRadius: '24px',
-          padding: '3rem',
-          maxWidth: '500px',
-          width: '90%',
+          padding: '2.5rem',
+          maxWidth: '600px',
+          width: '95%',
+          maxHeight: '90vh',
+          overflow: 'auto',
           boxShadow: '0 20px 60px rgba(0, 0, 0, 0.3)',
           border: '1px solid rgba(255, 255, 255, 0.3)',
           textAlign: 'center',
@@ -38,26 +44,32 @@ export default function SuccessModal({ isOpen, onClose, message }) {
         }}
         onClick={(e) => e.stopPropagation()}
       >
-        <div style={{ fontSize: '4rem', marginBottom: '1rem' }}>🎉</div>
+        <div style={{ fontSize: '3.5rem', marginBottom: '0.75rem' }}>🎉</div>
         <h2 style={{
           background: 'linear-gradient(135deg, #016fab 0%, #014d7a 100%)',
           WebkitBackgroundClip: 'text',
           WebkitTextFillColor: 'transparent',
           backgroundClip: 'text',
-          fontSize: '1.75rem',
+          fontSize: '1.5rem',
           fontWeight: '700',
-          marginBottom: '1rem'
+          marginBottom: '0.75rem'
         }}>
           Grazie per il tuo feedback!
         </h2>
         <p style={{
           color: '#555',
-          fontSize: '1.1rem',
-          lineHeight: '1.6',
-          marginBottom: '2rem'
+          fontSize: '1rem',
+          lineHeight: '1.5',
+          marginBottom: '1.5rem'
         }}>
           {message || 'La tua esperienza è stata registrata con successo. Grazie per aver partecipato!'}
         </p>
+
+        {/* Curiosità sui dolci italiani */}
+        <div style={{ textAlign: 'left', marginBottom: '1.5rem' }}>
+          <FunFacts />
+        </div>
+
         <button
           onClick={onClose}
           style={{

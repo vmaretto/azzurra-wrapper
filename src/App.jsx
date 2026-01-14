@@ -3,6 +3,7 @@ import WelcomeScreen from './components/WelcomeScreen.jsx';
 import ProfileForm from './components/ProfileForm.jsx';
 import AzzurraAvatar from './components/AzzurraAvatar.jsx';
 import Survey from './components/Survey.jsx';
+import AdminDashboard from './pages/AdminDashboard.jsx';
 
 export default function App() {
   const [step, setStep] = useState('welcome');
@@ -10,6 +11,9 @@ export default function App() {
   const [startTime, setStartTime] = useState(null);
   const [duration, setDuration] = useState(null);
   const [azzurraOutput, setAzzurraOutput] = useState(null);
+
+  // Check if we're on /admin route
+  const isAdminRoute = window.location.pathname === '/admin';
 
   useEffect(() => {
     if (step === 'azzurra') {
@@ -25,6 +29,11 @@ export default function App() {
       localStorage.setItem('azzurraWrapperProfile', JSON.stringify(profile));
     }
   }, [profile]);
+
+  // Show admin dashboard if on /admin route
+  if (isAdminRoute) {
+    return <AdminDashboard />;
+  }
 
   return (
     <div className="app-container">
