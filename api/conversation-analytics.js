@@ -13,6 +13,13 @@ export default async function handler(req, res) {
   try {
     const sql = neon(process.env.DATABASE_URL || process.env.POSTGRES_DATABASE_URL);
 
+    // Ensure rating column exists (migration)
+    try {
+      await sql`ALTER TABLE azzurra_experiences ADD COLUMN IF NOT EXISTS rating INTEGER`;
+    } catch (e) {
+      console.log('Rating column check:', e.message);
+    }
+
     // Statistiche generali
     const generalStats = await sql`
       SELECT
@@ -137,8 +144,7 @@ export default async function handler(req, res) {
     console.error('Error fetching conversation analytics:', error);
     return res.status(500).json({
       error: 'Failed to fetch analytics',
-      details: error.message,
-      stack: error.stack
+      details: error.message
     });
   }
 }

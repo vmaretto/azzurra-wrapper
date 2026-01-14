@@ -24,7 +24,15 @@ export default async function handler(req, res) {
     }
 
     const sql = neon(process.env.DATABASE_URL || process.env.POSTGRES_DATABASE_URL);
-    
+
+    // Ensure rating column exists (one-time migration)
+    try {
+      await sql`ALTER TABLE azzurra_experiences ADD COLUMN IF NOT EXISTS rating INTEGER`;
+    } catch (e) {
+      // Column might already exist or other issue - continue anyway
+      console.log('Rating column migration:', e.message);
+    }
+
     const result = await sql`
       INSERT INTO azzurra_experiences
         (timestamp, duration, profile, output, feedback, rating)
