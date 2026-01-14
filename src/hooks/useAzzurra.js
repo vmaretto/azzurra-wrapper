@@ -21,6 +21,8 @@ export function useAzzurra() {
   const welcomeSentRef = useRef(false);
   const isProcessingRef = useRef(false);
   const conversationHistoryRef = useRef([]);
+  const transcriptionBufferRef = useRef('');
+  const transcriptionTimeoutRef = useRef(null);
 
   // Messaggio di benvenuto
   const WELCOME_MESSAGE = "Ciao sono Azzurra, l'avatar digitale di ECI, l'enciclopedia della Cucina Italiana, messo a punto da CREA, l'ente Italiano di ricerca sull'agroalimentare, con gli esperti di FIB per accompagnarti nell'affascinante mondo dell'alimentazione italiana. Oggi si parte per un viaggio all'insegna della dolcezza! Iniziamo!";
@@ -152,8 +154,8 @@ export function useAzzurra() {
         setIsListening(false);
       });
 
-      // Gestione trascrizione utente con INTERRUPT AGGRESSIVO
-      session.on(AgentEventsEnum.USER_TRANSCRIPTION, async (event) => {
+      // Gestione trascrizione utente con DEBOUNCE per accumulare frasi complete
+      session.on(AgentEventsEnum.USER_TRANSCRIPTION, (event) => {
         console.log('USER_TRANSCRIPTION event received:', event);
 
         // INTERRUPT IMMEDIATO - cancella qualsiasi risposta LLM automatica
@@ -170,45 +172,61 @@ export function useAzzurra() {
           return;
         }
 
-        // Se stiamo già processando, ignora
-        if (isProcessingRef.current) {
-          console.log('Already processing, ignoring transcription');
-          return;
+        // Accumula il testo nel buffer (NON bloccare se isProcessing)
+        transcriptionBufferRef.current += ' ' + text;
+        transcriptionBufferRef.current = transcriptionBufferRef.current.trim();
+        console.log('Buffer updated:', transcriptionBufferRef.current);
+
+        // Reset timeout ad ogni nuovo pezzo di testo
+        if (transcriptionTimeoutRef.current) {
+          clearTimeout(transcriptionTimeoutRef.current);
         }
 
-        // Ignora messaggi troppo corti
-        if (text.length < 3) {
-          console.log('Message too short, ignoring');
-          return;
-        }
+        // Processa solo dopo 1.5s di silenzio (frase completa)
+        transcriptionTimeoutRef.current = setTimeout(async () => {
+          // Se stiamo già processando, aspetta
+          if (isProcessingRef.current) {
+            console.log('Already processing, will retry later');
+            return;
+          }
 
-        console.log('Processing user message:', text);
-        isProcessingRef.current = true;
+          const fullMessage = transcriptionBufferRef.current;
+          transcriptionBufferRef.current = ''; // Svuota buffer
 
-        // Aggiorna history
-        setConversationHistory(prev => [...prev, { role: 'user', content: text }]);
+          // Ignora messaggi troppo corti
+          if (fullMessage.length < 3) {
+            console.log('Message too short, ignoring');
+            return;
+          }
 
-        try {
-          // Ottieni risposta da Claude
-          const reply = await getChatResponse(text);
-          console.log('Claude reply:', reply);
+          console.log('Processing complete message:', fullMessage);
+          isProcessingRef.current = true;
 
           // Aggiorna history
-          setConversationHistory(prev => [...prev, { role: 'assistant', content: reply }]);
+          setConversationHistory(prev => [...prev, { role: 'user', content: fullMessage }]);
 
-          // FULL mode: usa repeat() con TTS integrato
-          session.repeat(reply);
-          console.log('Reply sent to avatar');
-        } catch (err) {
-          console.error('Error getting response:', err);
           try {
-            session.repeat("Scusami, non ho capito bene. Puoi ripetere?");
-          } catch (fallbackErr) {
-            console.error('Error sending fallback:', fallbackErr);
+            // Ottieni risposta da Claude
+            const reply = await getChatResponse(fullMessage);
+            console.log('Claude reply:', reply);
+
+            // Aggiorna history
+            setConversationHistory(prev => [...prev, { role: 'assistant', content: reply }]);
+
+            // FULL mode: usa repeat() con TTS integrato
+            session.repeat(reply);
+            console.log('Reply sent to avatar');
+          } catch (err) {
+            console.error('Error getting response:', err);
+            try {
+              session.repeat("Scusami, non ho capito bene. Puoi ripetere?");
+            } catch (fallbackErr) {
+              console.error('Error sending fallback:', fallbackErr);
+            }
+          } finally {
+            isProcessingRef.current = false;
           }
-        } finally {
-          isProcessingRef.current = false;
-        }
+        }, 1500); // 1.5 secondi di silenzio prima di processare
       });
 
       // Avvia sessione

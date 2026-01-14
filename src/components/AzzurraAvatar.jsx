@@ -39,11 +39,29 @@ export function AzzurraAvatar({ onFinish }) {
   }, [isConnected, startVoiceChat]);
 
   // Tap to start - connette l'avatar
-  const handleTapToStart = () => {
+  const handleTapToStart = async () => {
     if (!isLoading && !isConnected) {
-      connect();
+      // Avvia play subito nel contesto user gesture (muted per garantire autoplay)
+      if (videoRef.current) {
+        videoRef.current.muted = true;
+        videoRef.current.play().catch(() => {});
+      }
+      await connect();
     }
   };
+
+  // Unmute video dopo che la connessione è stabilita
+  useEffect(() => {
+    if (isConnected && videoRef.current) {
+      // Piccolo delay per assicurarsi che lo stream sia pronto
+      const timer = setTimeout(() => {
+        if (videoRef.current) {
+          videoRef.current.muted = false;
+        }
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [isConnected]);
 
   // Termina esperienza
   const handleDisconnect = async () => {
@@ -81,7 +99,7 @@ export function AzzurraAvatar({ onFinish }) {
         className={`avatar-video ${isConnected ? 'visible' : ''}`}
         autoPlay
         playsInline
-        muted={false}
+        muted
       />
 
       {/* Controlli circolari - solo quando connesso */}
