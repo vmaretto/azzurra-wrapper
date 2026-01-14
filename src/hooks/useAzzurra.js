@@ -21,10 +21,12 @@ export function useAzzurra() {
   const welcomeSentRef = useRef(false);
   const isProcessingRef = useRef(false);
   const isTalkingRef = useRef(false);
+  const isMutedRef = useRef(false);
   const conversationHistoryRef = useRef([]);
   const transcriptionBufferRef = useRef('');
   const fallbackTimeoutRef = useRef(null);
   const processDelayRef = useRef(null);
+  const lastProcessedRef = useRef(''); // Per evitare doppie risposte
 
   // Messaggio di benvenuto
   const WELCOME_MESSAGE = "Ciao sono Azzurra, l'avatar digitale di ECI, l'enciclopedia della Cucina Italiana, messo a punto da CREA, l'ente Italiano di ricerca sull'agroalimentare, con gli esperti di FIB per accompagnarti nell'affascinante mondo dell'alimentazione italiana. Oggi si parte per un viaggio all'insegna della dolcezza! Iniziamo!";
@@ -164,14 +166,18 @@ export function useAzzurra() {
 
       // Funzione per processare il buffer con retry
       const processBuffer = async () => {
-        // Cancella timeout fallback
+        // Cancella timeout fallback e processDelay
         if (fallbackTimeoutRef.current) {
           clearTimeout(fallbackTimeoutRef.current);
           fallbackTimeoutRef.current = null;
         }
+        if (processDelayRef.current) {
+          clearTimeout(processDelayRef.current);
+          processDelayRef.current = null;
+        }
 
-        // Copia atomica del buffer
-        const message = transcriptionBufferRef.current;
+        // Copia atomica del buffer e svuota SUBITO
+        const message = transcriptionBufferRef.current.trim();
         transcriptionBufferRef.current = '';
 
         if (!message || message.length < 3) {
@@ -179,9 +185,15 @@ export function useAzzurra() {
           return;
         }
 
+        // Controlla se è un messaggio già processato (anti-duplicato)
+        if (message === lastProcessedRef.current) {
+          console.log('⏭️ Messaggio già processato, skip:', message);
+          return;
+        }
+
         // Aspetta se avatar sta parlando
         if (isTalkingRef.current) {
-          console.log('⏳ Avatar sta parlando, attendo...');
+          console.log('⏳ Avatar sta parlando, rimetto in buffer e attendo...');
           transcriptionBufferRef.current = message;
           setTimeout(() => processBuffer(), 1000);
           return;
@@ -189,14 +201,19 @@ export function useAzzurra() {
 
         // Aspetta se stiamo già processando
         if (isProcessingRef.current) {
-          console.log('⏳ Processing in corso, attendo...');
+          console.log('⏳ Processing in corso, rimetto in buffer e attendo...');
           transcriptionBufferRef.current = message;
           setTimeout(() => processBuffer(), 1000);
           return;
         }
 
-        console.log('📥 DOMANDA RICEVUTA:', message);
+        // Segna come ultimo messaggio processato
+        lastProcessedRef.current = message;
         isProcessingRef.current = true;
+
+        console.log('═══════════════════════════════════════');
+        console.log('📥 DOMANDA COMPLETA:', message);
+        console.log('═══════════════════════════════════════');
 
         // Aggiorna history
         setConversationHistory(prev => [...prev, { role: 'user', content: message }]);
@@ -204,7 +221,10 @@ export function useAzzurra() {
         try {
           // Ottieni risposta da Claude
           const reply = await getChatResponse(message);
-          console.log('📤 RISPOSTA CLAUDE:', reply.substring(0, 100) + '...');
+
+          console.log('═══════════════════════════════════════');
+          console.log('📤 RISPOSTA COMPLETA:', reply);
+          console.log('═══════════════════════════════════════');
 
           // Aggiorna history
           setConversationHistory(prev => [...prev, { role: 'assistant', content: reply }]);
@@ -241,6 +261,12 @@ export function useAzzurra() {
 
       // USER_TRANSCRIPTION: accumula + gestisce timeout fallback
       session.on(AgentEventsEnum.USER_TRANSCRIPTION, (event) => {
+        // Ignora trascrizioni se microfono è muted
+        if (isMutedRef.current) {
+          console.log('🔇 Microfono muted, ignoro trascrizione');
+          return;
+        }
+
         // INTERRUPT IMMEDIATO - cancella qualsiasi risposta LLM automatica
         try {
           session.interrupt();
@@ -251,7 +277,7 @@ export function useAzzurra() {
         const text = event.text || event.transcript;
         if (!text) return;
 
-        console.log('🎤 Trascrizione:', text);
+        console.log('🎤 Trascrizione ricevuta:', text);
 
         // Accumula il testo nel buffer
         transcriptionBufferRef.current += ' ' + text;
@@ -350,13 +376,32 @@ export function useAzzurra() {
     if (!sessionRef.current || !isConnected) return;
 
     if (isMuted) {
+      // Unmute
+      isMutedRef.current = false;
       sessionRef.current.startListening();
       setIsMuted(false);
-      console.log('Microphone unmuted');
+      console.log('🎤 Microphone UNMUTED - avatar ascolterà');
     } else {
+      // Mute - ferma ascolto e svuota buffer
+      isMutedRef.current = true;
       sessionRef.current.stopListening();
+
+      // Cancella eventuali timeout pendenti
+      if (fallbackTimeoutRef.current) {
+        clearTimeout(fallbackTimeoutRef.current);
+        fallbackTimeoutRef.current = null;
+      }
+      if (processDelayRef.current) {
+        clearTimeout(processDelayRef.current);
+        processDelayRef.current = null;
+      }
+
+      // Svuota il buffer
+      transcriptionBufferRef.current = '';
+
       setIsMuted(true);
-      console.log('Microphone muted');
+      setIsListening(false);
+      console.log('🔇 Microphone MUTED - avatar NON ascolterà');
     }
   }, [isConnected, isMuted]);
 

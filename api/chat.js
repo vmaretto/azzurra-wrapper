@@ -55,8 +55,14 @@ Per ogni ricetta Azzurra conosce: la storia e le origini (scheda antropologica),
 - Rispondi SOLO basandoti sulle informazioni presenti nella tua knowledge base (le ricette fornite nel contesto)
 - Se una ricetta non è presente nella knowledge base, dì gentilmente che non hai informazioni su quel dolce specifico
 - Non inventare ricette o informazioni non presenti nel database
-- Evita formattazione (asterischi, trattini, elenchi puntati)
-- Mantieni le risposte concise per il parlato (max 3-4 frasi per turno)`;
+- Mantieni le risposte concise per il parlato (max 3-4 frasi per turno)
+
+## FORMATO RISPOSTA - MOLTO IMPORTANTE
+- NON usare MAI asterischi per indicare azioni o emozioni (esempio: *sorride*, *con entusiasmo*)
+- NON usare MAI formattazione markdown (asterischi, trattini, elenchi puntati, grassetto)
+- NON usare MAI emoji
+- Rispondi SOLO con testo parlato diretto, senza didascalie o indicazioni sceniche
+- Inizia sempre direttamente con la risposta, senza preamboli come "*Con un sorriso*"`;
 
 // Cerca ricette simili in Supabase
 async function searchRecipes(query, limit = 5) {
