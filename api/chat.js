@@ -146,8 +146,18 @@ export default async function handler(req, res) {
 
     const reply = response.content[0].text;
 
-    // Estrai titoli unici delle ricette trovate dal RAG
-    const recipeTitles = [...new Set(relevantRecipes.map(r => r.titolo))];
+    // Filtra solo le ricette che sono EFFETTIVAMENTE menzionate nella risposta di Claude
+    // (non tutte quelle trovate dal RAG, ma solo quelle di cui Claude parla)
+    const allRagTitles = [...new Set(relevantRecipes.map(r => r.titolo))];
+    const replyLower = reply.toLowerCase();
+
+    const recipeTitles = allRagTitles.filter(title => {
+      // Controlla se il titolo appare nella risposta (case insensitive)
+      return replyLower.includes(title.toLowerCase());
+    });
+
+    console.log('RAG trovate:', allRagTitles);
+    console.log('Menzionate nella risposta:', recipeTitles);
 
     res.status(200).json({
       reply,
