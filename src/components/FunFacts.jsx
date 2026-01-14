@@ -3,8 +3,11 @@ import React, { useState, useEffect } from 'react';
 /**
  * FunFacts mostra curiosità divertenti sui dolci italiani
  * Viene mostrato dopo che l'utente ha lasciato il feedback
+ * Props:
+ * - conversationHistory: array di messaggi della conversazione
+ * - discussedRecipes: array di titoli ricette discusse
  */
-export default function FunFacts() {
+export default function FunFacts({ conversationHistory = [], discussedRecipes = [] }) {
   const [facts, setFacts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);

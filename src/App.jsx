@@ -3,7 +3,7 @@ import WelcomeScreen from './components/WelcomeScreen.jsx';
 import ProfileForm from './components/ProfileForm.jsx';
 import AzzurraAvatar from './components/AzzurraAvatar.jsx';
 import Survey from './components/Survey.jsx';
-import AdminDashboard from './pages/AdminDashboard.jsx';
+import Dashboard from './pages/Dashboard.jsx';
 
 export default function App() {
   const [step, setStep] = useState('welcome');
@@ -12,8 +12,8 @@ export default function App() {
   const [duration, setDuration] = useState(null);
   const [azzurraOutput, setAzzurraOutput] = useState(null);
 
-  // Check if we're on /admin route
-  const isAdminRoute = window.location.pathname === '/admin';
+  // Check if we're on /dashboard or /admin route (both go to dashboard)
+  const isDashboardRoute = window.location.pathname === '/dashboard' || window.location.pathname === '/admin';
 
   useEffect(() => {
     if (step === 'azzurra') {
@@ -30,9 +30,9 @@ export default function App() {
     }
   }, [profile]);
 
-  // Show admin dashboard if on /admin route
-  if (isAdminRoute) {
-    return <AdminDashboard />;
+  // Show dashboard if on /dashboard or /admin route (no password required)
+  if (isDashboardRoute) {
+    return <Dashboard />;
   }
 
   return (

@@ -1,11 +1,11 @@
 import React from 'react';
-import FunFacts from './FunFacts.jsx';
+import SmartInsights from './SmartInsights.jsx';
 
 /**
  * SuccessModal - Modern modal popup for showing success messages
  * Include anche le curiosità sui dolci italiani
  */
-export default function SuccessModal({ isOpen, onClose, message }) {
+export default function SuccessModal({ isOpen, onClose, message, conversationHistory = [], discussedRecipes = [] }) {
   if (!isOpen) return null;
 
   return (
@@ -65,9 +65,12 @@ export default function SuccessModal({ isOpen, onClose, message }) {
           {message || 'La tua esperienza è stata registrata con successo. Grazie per aver partecipato!'}
         </p>
 
-        {/* Curiosità sui dolci italiani */}
+        {/* Smart Insights personalizzati sui dolci */}
         <div style={{ textAlign: 'left', marginBottom: '1.5rem' }}>
-          <FunFacts />
+          <SmartInsights
+            conversationHistory={conversationHistory}
+            discussedRecipes={discussedRecipes}
+          />
         </div>
 
         <button

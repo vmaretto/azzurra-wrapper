@@ -182,10 +182,12 @@ export default function Survey({ duration, profile, output, onRestart }) {
         </div>
       </section>
       
-      <SuccessModal 
-        isOpen={showModal} 
+      <SuccessModal
+        isOpen={showModal}
         onClose={handleCloseModal}
         message="La tua esperienza è stata registrata con successo nel nostro database!"
+        conversationHistory={output?.conversationHistory || []}
+        discussedRecipes={output?.discussedRecipes || []}
       />
     </>
   );
