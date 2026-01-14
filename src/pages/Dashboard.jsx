@@ -226,7 +226,7 @@ function OverviewSection({ stats, analytics }) {
       {/* Charts Row */}
       <div style={styles.chartsRow}>
         <ChartCard title="Trend Ultimi 30 Giorni" height={250}>
-          {trendData.length > 0 && (
+          {trendData.length > 0 ? (
             <Line
               data={{
                 labels: trendData.map(d =>
@@ -254,11 +254,13 @@ function OverviewSection({ stats, analytics }) {
                 }
               }}
             />
+          ) : (
+            <NoDataMessage message="Nessun dato disponibile" />
           )}
         </ChartCard>
 
         <ChartCard title="Distribuzione Rating" height={250}>
-          {analytics?.ratingDistribution && (
+          {analytics?.ratingDistribution?.length > 0 ? (
             <Doughnut
               data={{
                 labels: analytics.ratingDistribution.map(r => `${r.rating} stelle`),
@@ -277,13 +279,15 @@ function OverviewSection({ stats, analytics }) {
                 }
               }}
             />
+          ) : (
+            <NoDataMessage message="Nessun rating ancora registrato" />
           )}
         </ChartCard>
       </div>
 
       {/* Orari Heatmap */}
       <ChartCard title="Attivita per Ora del Giorno" height={200}>
-        {analytics?.hourlyDistribution && (
+        {analytics?.hourlyDistribution?.length > 0 ? (
           <Bar
             data={{
               labels: analytics.hourlyDistribution.map(h => `${h.hour}:00`),
@@ -309,8 +313,28 @@ function OverviewSection({ stats, analytics }) {
               }
             }}
           />
+        ) : (
+          <NoDataMessage message="Nessun dato disponibile" />
         )}
       </ChartCard>
+    </div>
+  );
+}
+
+// Componente: No Data Message
+function NoDataMessage({ message }) {
+  return (
+    <div style={{
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      justifyContent: 'center',
+      height: '100%',
+      color: COLORS.textLight,
+      gap: '0.5rem'
+    }}>
+      <span style={{ fontSize: '2rem', opacity: 0.5 }}>📊</span>
+      <span style={{ fontSize: '0.9rem' }}>{message}</span>
     </div>
   );
 }
@@ -376,7 +400,7 @@ function RecipesSection({ curiosities }) {
       <div style={styles.chartsRow}>
         {/* Categorie Dolci */}
         <ChartCard title="Categorie Dolci" height={280}>
-          {curiosities.familyDistribution && (
+          {curiosities.familyDistribution?.length > 0 ? (
             <Doughnut
               data={{
                 labels: curiosities.familyDistribution.map(f => f.famiglia),
@@ -395,6 +419,8 @@ function RecipesSection({ curiosities }) {
                 }
               }}
             />
+          ) : (
+            <NoDataMessage message="Nessun dato disponibile" />
           )}
         </ChartCard>
 
@@ -473,7 +499,7 @@ function UsersSection({ analytics, stats }) {
       <div style={styles.chartsRow}>
         {/* Distribuzione Eta */}
         <ChartCard title="Distribuzione per Eta" height={280}>
-          {analytics?.ageDistribution && (
+          {analytics?.ageDistribution?.length > 0 ? (
             <Bar
               data={{
                 labels: analytics.ageDistribution.map(a => a.fascia_eta || 'N/A'),
@@ -495,12 +521,14 @@ function UsersSection({ analytics, stats }) {
                 }
               }}
             />
+          ) : (
+            <NoDataMessage message="Nessun dato disponibile" />
           )}
         </ChartCard>
 
         {/* Distribuzione Sesso */}
         <ChartCard title="Distribuzione per Sesso" height={280}>
-          {analytics?.genderDistribution && (
+          {analytics?.genderDistribution?.length > 0 ? (
             <Doughnut
               data={{
                 labels: analytics.genderDistribution.map(g => g.sesso || 'Non specificato'),
@@ -519,6 +547,8 @@ function UsersSection({ analytics, stats }) {
                 }
               }}
             />
+          ) : (
+            <NoDataMessage message="Nessun dato disponibile" />
           )}
         </ChartCard>
       </div>
