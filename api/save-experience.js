@@ -26,15 +26,16 @@ export default async function handler(req, res) {
     const sql = neon(process.env.DATABASE_URL || process.env.POSTGRES_DATABASE_URL);
     
     const result = await sql`
-      INSERT INTO azzurra_experiences 
-        (timestamp, duration, profile, output, feedback)
-      VALUES 
+      INSERT INTO azzurra_experiences
+        (timestamp, duration, profile, output, feedback, rating)
+      VALUES
         (
           ${experienceData.timestamp || new Date().toISOString()},
           ${experienceData.duration},
           ${JSON.stringify(experienceData.profile)},
           ${experienceData.output ? JSON.stringify(experienceData.output) : null},
-          ${experienceData.feedback || null}
+          ${experienceData.feedback || null},
+          ${experienceData.rating || null}
         )
       RETURNING id, timestamp
     `;
