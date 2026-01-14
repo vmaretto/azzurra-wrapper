@@ -112,10 +112,11 @@ export function useAzzurra() {
         // Invia messaggio di benvenuto quando lo stream è pronto
         if (!welcomeSentRef.current) {
           welcomeSentRef.current = true;
-          setTimeout(async () => {
+          setTimeout(() => {
             console.log('Sending welcome message');
             try {
-              await speakWithTTS(session, WELCOME_MESSAGE);
+              // FULL mode: usa repeat() con TTS integrato
+              session.repeat(WELCOME_MESSAGE);
               console.log('Welcome message sent successfully');
             } catch (err) {
               console.error('Error sending welcome message:', err);
@@ -195,12 +196,13 @@ export function useAzzurra() {
           // Aggiorna history
           setConversationHistory(prev => [...prev, { role: 'assistant', content: reply }]);
 
-          // Fai parlare Azzurra con TTS
-          await speakWithTTS(session, reply);
+          // FULL mode: usa repeat() con TTS integrato
+          session.repeat(reply);
+          console.log('Reply sent to avatar');
         } catch (err) {
           console.error('Error getting response:', err);
           try {
-            await speakWithTTS(session, "Scusami, non ho capito bene. Puoi ripetere?");
+            session.repeat("Scusami, non ho capito bene. Puoi ripetere?");
           } catch (fallbackErr) {
             console.error('Error sending fallback:', fallbackErr);
           }
@@ -262,8 +264,8 @@ export function useAzzurra() {
       // Aggiorna history
       setConversationHistory(prev => [...prev, { role: 'assistant', content: reply }]);
 
-      // Fai parlare Azzurra con TTS
-      await speakWithTTS(sessionRef.current, reply);
+      // FULL mode: usa repeat() con TTS integrato
+      sessionRef.current.repeat(reply);
     } catch (err) {
       console.error('Send message error:', err);
       setError(err.message);
