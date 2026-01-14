@@ -22,7 +22,8 @@ export function useAzzurra() {
   const isProcessingRef = useRef(false);
   const conversationHistoryRef = useRef([]);
   const transcriptionBufferRef = useRef('');
-  const transcriptionTimeoutRef = useRef(null);
+  const fallbackTimeoutRef = useRef(null);
+  const processDelayRef = useRef(null);
 
   // Messaggio di benvenuto
   const WELCOME_MESSAGE = "Ciao sono Azzurra, l'avatar digitale di ECI, l'enciclopedia della Cucina Italiana, messo a punto da CREA, l'ente Italiano di ricerca sull'agroalimentare, con gli esperti di FIB per accompagnarti nell'affascinante mondo dell'alimentazione italiana. Oggi si parte per un viaggio all'insegna della dolcezza! Iniziamo!";
@@ -149,12 +150,76 @@ export function useAzzurra() {
         setIsListening(true);
       });
 
+      // Funzione per processare il buffer con retry
+      const processBuffer = async () => {
+        // Cancella timeout fallback
+        if (fallbackTimeoutRef.current) {
+          clearTimeout(fallbackTimeoutRef.current);
+          fallbackTimeoutRef.current = null;
+        }
+
+        // Copia atomica del buffer
+        const message = transcriptionBufferRef.current;
+        transcriptionBufferRef.current = '';
+
+        if (!message || message.length < 3) {
+          console.log('Buffer empty or too short, skipping');
+          return;
+        }
+
+        // Se stiamo già processando, rimetti nel buffer e riprova
+        if (isProcessingRef.current) {
+          console.log('Already processing, will retry in 500ms');
+          transcriptionBufferRef.current = message;
+          setTimeout(() => processBuffer(), 500);
+          return;
+        }
+
+        console.log('Processing complete message:', message);
+        isProcessingRef.current = true;
+
+        // Aggiorna history
+        setConversationHistory(prev => [...prev, { role: 'user', content: message }]);
+
+        try {
+          // Ottieni risposta da Claude
+          const reply = await getChatResponse(message);
+          console.log('Claude reply:', reply);
+
+          // Aggiorna history
+          setConversationHistory(prev => [...prev, { role: 'assistant', content: reply }]);
+
+          // FULL mode: usa repeat() con TTS integrato
+          session.repeat(reply);
+          console.log('Reply sent to avatar');
+        } catch (err) {
+          console.error('Error getting response:', err);
+          try {
+            session.repeat("Scusami, non ho capito bene. Puoi ripetere?");
+          } catch (fallbackErr) {
+            console.error('Error sending fallback:', fallbackErr);
+          }
+        } finally {
+          isProcessingRef.current = false;
+        }
+      };
+
+      // USER_SPEAK_ENDED: trigger veloce per processare
       session.on(AgentEventsEnum.USER_SPEAK_ENDED, () => {
         console.log('User stopped talking');
         setIsListening(false);
+
+        // Delay 500ms prima di processare (aspetta ultime trascrizioni)
+        if (processDelayRef.current) {
+          clearTimeout(processDelayRef.current);
+        }
+        processDelayRef.current = setTimeout(() => {
+          console.log('Processing after USER_SPEAK_ENDED delay');
+          processBuffer();
+        }, 500);
       });
 
-      // Gestione trascrizione utente con DEBOUNCE per accumulare frasi complete
+      // USER_TRANSCRIPTION: accumula + gestisce timeout fallback
       session.on(AgentEventsEnum.USER_TRANSCRIPTION, (event) => {
         console.log('USER_TRANSCRIPTION event received:', event);
 
@@ -172,61 +237,26 @@ export function useAzzurra() {
           return;
         }
 
-        // Accumula il testo nel buffer (NON bloccare se isProcessing)
+        // Accumula il testo nel buffer
         transcriptionBufferRef.current += ' ' + text;
         transcriptionBufferRef.current = transcriptionBufferRef.current.trim();
         console.log('Buffer updated:', transcriptionBufferRef.current);
 
-        // Reset timeout ad ogni nuovo pezzo di testo
-        if (transcriptionTimeoutRef.current) {
-          clearTimeout(transcriptionTimeoutRef.current);
+        // Cancella processDelay se arriva nuova trascrizione (utente sta ancora parlando)
+        if (processDelayRef.current) {
+          clearTimeout(processDelayRef.current);
+          processDelayRef.current = null;
+          console.log('Cancelled process delay - more speech incoming');
         }
 
-        // Processa solo dopo 1.5s di silenzio (frase completa)
-        transcriptionTimeoutRef.current = setTimeout(async () => {
-          // Se stiamo già processando, aspetta
-          if (isProcessingRef.current) {
-            console.log('Already processing, will retry later');
-            return;
-          }
-
-          const fullMessage = transcriptionBufferRef.current;
-          transcriptionBufferRef.current = ''; // Svuota buffer
-
-          // Ignora messaggi troppo corti
-          if (fullMessage.length < 3) {
-            console.log('Message too short, ignoring');
-            return;
-          }
-
-          console.log('Processing complete message:', fullMessage);
-          isProcessingRef.current = true;
-
-          // Aggiorna history
-          setConversationHistory(prev => [...prev, { role: 'user', content: fullMessage }]);
-
-          try {
-            // Ottieni risposta da Claude
-            const reply = await getChatResponse(fullMessage);
-            console.log('Claude reply:', reply);
-
-            // Aggiorna history
-            setConversationHistory(prev => [...prev, { role: 'assistant', content: reply }]);
-
-            // FULL mode: usa repeat() con TTS integrato
-            session.repeat(reply);
-            console.log('Reply sent to avatar');
-          } catch (err) {
-            console.error('Error getting response:', err);
-            try {
-              session.repeat("Scusami, non ho capito bene. Puoi ripetere?");
-            } catch (fallbackErr) {
-              console.error('Error sending fallback:', fallbackErr);
-            }
-          } finally {
-            isProcessingRef.current = false;
-          }
-        }, 1500); // 1.5 secondi di silenzio prima di processare
+        // Reset fallback timeout (3s) - processa se USER_SPEAK_ENDED non arriva
+        if (fallbackTimeoutRef.current) {
+          clearTimeout(fallbackTimeoutRef.current);
+        }
+        fallbackTimeoutRef.current = setTimeout(() => {
+          console.log('Fallback timeout triggered (3s)');
+          processBuffer();
+        }, 3000);
       });
 
       // Avvia sessione
