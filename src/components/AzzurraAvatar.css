@@ -105,6 +105,39 @@
   opacity: 1;
 }
 
+/* Indicatore di stato */
+.status-indicator {
+  position: fixed;
+  bottom: 200px;
+  left: 0;
+  right: 0;
+  text-align: center;
+  z-index: 100;
+}
+
+.status-indicator span {
+  display: inline-block;
+  background: rgba(0, 0, 0, 0.6);
+  color: white;
+  padding: 12px 24px;
+  border-radius: 24px;
+  font-size: 1.2rem;
+  backdrop-filter: blur(10px);
+}
+
+.status-talking {
+  color: #4ecdc4;
+}
+
+.status-listening {
+  color: #ffe66d;
+  animation: pulse-text 1s ease-in-out infinite;
+}
+
+.status-ready {
+  opacity: 0.7;
+}
+
 /* Controlli circolari in basso */
 .totem-controls {
   position: fixed;
@@ -115,6 +148,21 @@
   justify-content: center;
   gap: 80px;
   z-index: 100;
+}
+
+/* Container per pulsante + etichetta */
+.btn-with-label {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.btn-label {
+  margin-top: 10px;
+  color: white;
+  font-size: 0.95rem;
+  opacity: 0.9;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
 }
 
 /* Pulsanti circolari */
@@ -207,6 +255,15 @@
     font-size: 1.8rem;
   }
 
+  .status-indicator {
+    bottom: 160px;
+  }
+
+  .status-indicator span {
+    font-size: 1rem;
+    padding: 10px 20px;
+  }
+
   .totem-controls {
     bottom: 40px;
     gap: 60px;
@@ -220,5 +277,10 @@
   .circle-btn svg {
     width: 28px;
     height: 28px;
+  }
+
+  .btn-label {
+    font-size: 0.85rem;
+    margin-top: 8px;
   }
 }

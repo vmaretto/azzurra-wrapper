@@ -20,6 +20,7 @@ export function useAzzurra() {
   const sessionRef = useRef(null);
   const welcomeSentRef = useRef(false);
   const isProcessingRef = useRef(false);
+  const isTalkingRef = useRef(false);
   const conversationHistoryRef = useRef([]);
   const transcriptionBufferRef = useRef('');
   const fallbackTimeoutRef = useRef(null);
@@ -135,13 +136,24 @@ export function useAzzurra() {
 
       // Event listeners - Avatar
       session.on(AgentEventsEnum.AVATAR_SPEAK_STARTED, () => {
-        console.log('Avatar started talking');
+        console.log('🔊 Avatar inizia a parlare');
+        isTalkingRef.current = true;
         setIsTalking(true);
       });
 
       session.on(AgentEventsEnum.AVATAR_SPEAK_ENDED, () => {
-        console.log('Avatar stopped talking');
+        console.log('🔇 Avatar ha finito di parlare');
+        isTalkingRef.current = false;
         setIsTalking(false);
+
+        // Se c'è qualcosa nel buffer, processa ora che avatar ha finito
+        if (transcriptionBufferRef.current.length > 3) {
+          console.log('📝 Buffer da processare dopo avatar:', transcriptionBufferRef.current);
+          if (processDelayRef.current) {
+            clearTimeout(processDelayRef.current);
+          }
+          processDelayRef.current = setTimeout(() => processBuffer(), 500);
+        }
       });
 
       // Event listeners - Utente
@@ -163,19 +175,27 @@ export function useAzzurra() {
         transcriptionBufferRef.current = '';
 
         if (!message || message.length < 3) {
-          console.log('Buffer empty or too short, skipping');
+          console.log('⏭️ Buffer vuoto o troppo corto, skip');
           return;
         }
 
-        // Se stiamo già processando, rimetti nel buffer e riprova
-        if (isProcessingRef.current) {
-          console.log('Already processing, will retry in 500ms');
+        // Aspetta se avatar sta parlando
+        if (isTalkingRef.current) {
+          console.log('⏳ Avatar sta parlando, attendo...');
           transcriptionBufferRef.current = message;
-          setTimeout(() => processBuffer(), 500);
+          setTimeout(() => processBuffer(), 1000);
           return;
         }
 
-        console.log('Processing complete message:', message);
+        // Aspetta se stiamo già processando
+        if (isProcessingRef.current) {
+          console.log('⏳ Processing in corso, attendo...');
+          transcriptionBufferRef.current = message;
+          setTimeout(() => processBuffer(), 1000);
+          return;
+        }
+
+        console.log('📥 DOMANDA RICEVUTA:', message);
         isProcessingRef.current = true;
 
         // Aggiorna history
@@ -184,20 +204,20 @@ export function useAzzurra() {
         try {
           // Ottieni risposta da Claude
           const reply = await getChatResponse(message);
-          console.log('Claude reply:', reply);
+          console.log('📤 RISPOSTA CLAUDE:', reply.substring(0, 100) + '...');
 
           // Aggiorna history
           setConversationHistory(prev => [...prev, { role: 'assistant', content: reply }]);
 
           // FULL mode: usa repeat() con TTS integrato
+          console.log('🔊 Invio risposta all\'avatar');
           session.repeat(reply);
-          console.log('Reply sent to avatar');
         } catch (err) {
-          console.error('Error getting response:', err);
+          console.error('❌ Errore risposta:', err);
           try {
             session.repeat("Scusami, non ho capito bene. Puoi ripetere?");
           } catch (fallbackErr) {
-            console.error('Error sending fallback:', fallbackErr);
+            console.error('❌ Errore fallback:', fallbackErr);
           }
         } finally {
           isProcessingRef.current = false;
@@ -221,42 +241,37 @@ export function useAzzurra() {
 
       // USER_TRANSCRIPTION: accumula + gestisce timeout fallback
       session.on(AgentEventsEnum.USER_TRANSCRIPTION, (event) => {
-        console.log('USER_TRANSCRIPTION event received:', event);
-
         // INTERRUPT IMMEDIATO - cancella qualsiasi risposta LLM automatica
         try {
           session.interrupt();
-          console.log('Interrupted automatic LLM response');
         } catch (e) {
-          console.log('Interrupt:', e.message);
+          // Ignora errori interrupt
         }
 
         const text = event.text || event.transcript;
-        if (!text) {
-          console.log('No text in transcription event');
-          return;
-        }
+        if (!text) return;
+
+        console.log('🎤 Trascrizione:', text);
 
         // Accumula il testo nel buffer
         transcriptionBufferRef.current += ' ' + text;
         transcriptionBufferRef.current = transcriptionBufferRef.current.trim();
-        console.log('Buffer updated:', transcriptionBufferRef.current);
+        console.log('📝 Buffer attuale:', transcriptionBufferRef.current);
 
         // Cancella processDelay se arriva nuova trascrizione (utente sta ancora parlando)
         if (processDelayRef.current) {
           clearTimeout(processDelayRef.current);
           processDelayRef.current = null;
-          console.log('Cancelled process delay - more speech incoming');
         }
 
-        // Reset fallback timeout (3s) - processa se USER_SPEAK_ENDED non arriva
+        // Reset fallback timeout (5s) - processa se USER_SPEAK_ENDED non arriva
         if (fallbackTimeoutRef.current) {
           clearTimeout(fallbackTimeoutRef.current);
         }
         fallbackTimeoutRef.current = setTimeout(() => {
-          console.log('Fallback timeout triggered (3s)');
+          console.log('⏰ Fallback timeout (5s) - processo buffer');
           processBuffer();
-        }, 3000);
+        }, 5000);
       });
 
       // Avvia sessione
