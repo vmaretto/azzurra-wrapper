@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import SuccessModal from './SuccessModal.jsx';
+import RecipeResults from './RecipeResults.jsx';
 
 /**
  * Survey presents a summary of the user's session, including 
@@ -112,11 +113,8 @@ export default function Survey({ duration, profile, output, onRestart }) {
             </div>
           )}
 
-          {output && (
-            <>
-              <h3>Risultato Azzurra:</h3>
-              <pre>{JSON.stringify(output, null, 2)}</pre>
-            </>
+          {output && output.conversationHistory && (
+            <RecipeResults conversationHistory={output.conversationHistory} />
           )}
 
           <h3>Valuta l'esperienza</h3>
