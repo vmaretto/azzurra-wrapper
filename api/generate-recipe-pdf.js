@@ -11,6 +11,18 @@ const supabase = supabaseUrl && supabaseKey
   ? createClient(supabaseUrl, supabaseKey)
   : null;
 
+// Normalizza testo rimuovendo accenti e caratteri speciali
+function normalizeText(text) {
+  if (!text) return '';
+  return text
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '') // Rimuove accenti
+    .replace(/[^a-z0-9\s]/g, ' ')    // Rimuove caratteri speciali
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 // Estrae i titoli delle ricette menzionate nella conversazione
 async function extractMentionedRecipes(conversationHistory) {
   if (!supabase || !conversationHistory || conversationHistory.length === 0) {
@@ -32,17 +44,29 @@ async function extractMentionedRecipes(conversationHistory) {
     // Estrai titoli unici
     const uniqueTitles = [...new Set(allRecipes.map(r => r.titolo))];
 
-    // Concatena tutti i messaggi dell'assistant
-    const assistantMessages = conversationHistory
-      .filter(msg => msg.role === 'assistant')
+    // Concatena tutti i messaggi dell'assistant E dell'utente
+    const allMessages = conversationHistory
       .map(msg => msg.content)
-      .join(' ')
-      .toLowerCase();
+      .join(' ');
 
-    // Trova quali titoli sono menzionati
-    const mentionedTitles = uniqueTitles.filter(title =>
-      assistantMessages.includes(title.toLowerCase())
-    );
+    // Normalizza il testo della conversazione
+    const normalizedConversation = normalizeText(allMessages);
+
+    console.log('Ricerca ricette nella conversazione...');
+    console.log('Titoli disponibili:', uniqueTitles.length);
+
+    // Trova quali titoli sono menzionati (con normalizzazione)
+    const mentionedTitles = uniqueTitles.filter(title => {
+      const normalizedTitle = normalizeText(title);
+      // Cerca il titolo normalizzato nella conversazione normalizzata
+      const found = normalizedConversation.includes(normalizedTitle);
+      if (found) {
+        console.log('Trovata ricetta:', title);
+      }
+      return found;
+    });
+
+    console.log('Ricette trovate:', mentionedTitles);
 
     if (mentionedTitles.length === 0) {
       return [];

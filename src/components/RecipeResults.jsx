@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import QRCode from 'qrcode';
 
 /**
  * RecipeResults mostra le ricette discusse durante la conversazione
@@ -8,7 +7,6 @@ import QRCode from 'qrcode';
 export default function RecipeResults({ conversationHistory }) {
   const [recipes, setRecipes] = useState([]);
   const [pdfBase64, setPdfBase64] = useState(null);
-  const [qrCodeUrl, setQrCodeUrl] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -34,18 +32,6 @@ export default function RecipeResults({ conversationHistory }) {
         setRecipes(data.recipes || []);
         setPdfBase64(data.pdfBase64);
 
-        // Genera QR code se abbiamo ricette
-        if (data.recipes && data.recipes.length > 0) {
-          // Il QR code mostra un messaggio che invita a scaricare
-          // In futuro potrebbe puntare a un URL pubblico
-          const qrText = `Azzurra - ${data.recipes.length} ricette: ${data.recipes.map(r => r.titolo).join(', ')}`;
-          const qrUrl = await QRCode.toDataURL(qrText, {
-            width: 200,
-            margin: 2,
-            color: { dark: '#016fab', light: '#ffffff' }
-          });
-          setQrCodeUrl(qrUrl);
-        }
       } catch (err) {
         console.error('Errore:', err);
         setError(err.message);
@@ -119,13 +105,6 @@ export default function RecipeResults({ conversationHistory }) {
           </button>
         )}
       </div>
-
-      {qrCodeUrl && (
-        <div className="qr-section">
-          <img src={qrCodeUrl} alt="QR Code Ricette" className="qr-code" />
-          <p className="qr-caption">Scansiona per i dettagli</p>
-        </div>
-      )}
     </div>
   );
 }

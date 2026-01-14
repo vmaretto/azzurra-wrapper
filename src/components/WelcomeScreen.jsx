@@ -24,10 +24,10 @@ export default function WelcomeScreen({ onNext }) {
         />
         <h1>Benvenuto in Azzurra</h1>
         <p style={{ fontSize: '1.15rem', marginTop: '1rem' }}>
-          Scopri un'esperienza guidata nella cucina italiana e nella nutrizione mediterranea.
+          Scopri una originale esperienza immersiva e lasciati guidare attraverso le dolcezze della Cucina italiana, patrimonio Unesco.
         </p>
         <p style={{ color: '#777', fontSize: '0.95rem' }}>
-          Preparati ad esplorare sapori autentici, ricette tradizionali e consigli nutrizionali personalizzati.
+          Preparati ad esplorare sapori autentici e ricette tradizionali tra storia, gastronomia e scienza.
         </p>
         <button onClick={onNext}>Inizia l'avventura</button>
       </div>
