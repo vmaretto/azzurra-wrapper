@@ -39,22 +39,22 @@ export default async function handler(req, res) {
     // Distribuzione oraria (ora del giorno)
     const hourlyDistribution = await sql`
       SELECT
-        EXTRACT(HOUR FROM timestamp) as hour,
+        EXTRACT(HOUR FROM "timestamp") as hour,
         COUNT(*) as count
       FROM azzurra_experiences
-      GROUP BY EXTRACT(HOUR FROM timestamp)
+      GROUP BY EXTRACT(HOUR FROM "timestamp")
       ORDER BY hour
     `;
 
     // Trend giornaliero (ultimi 30 giorni)
     const dailyTrend = await sql`
       SELECT
-        DATE(timestamp) as date,
+        DATE("timestamp") as date,
         COUNT(*) as count,
         AVG(rating) as avg_rating
       FROM azzurra_experiences
-      WHERE timestamp >= NOW() - INTERVAL '30 days'
-      GROUP BY DATE(timestamp)
+      WHERE "timestamp" >= NOW() - INTERVAL '30 days'
+      GROUP BY DATE("timestamp")
       ORDER BY date DESC
     `;
 
@@ -82,15 +82,15 @@ export default async function handler(req, res) {
       ORDER BY count DESC
     `;
 
-    // Distribuzione per area geografica
+    // Distribuzione per area geografica (supporta sia 'region' che 'areaGeografica')
     const regionDistribution = await sql`
       SELECT
-        profile->>'areaGeografica' as area,
+        COALESCE(profile->>'region', profile->>'areaGeografica') as area,
         COUNT(*) as count,
         AVG(rating) as avg_rating
       FROM azzurra_experiences
-      WHERE profile->>'areaGeografica' IS NOT NULL
-      GROUP BY profile->>'areaGeografica'
+      WHERE profile->>'region' IS NOT NULL OR profile->>'areaGeografica' IS NOT NULL
+      GROUP BY COALESCE(profile->>'region', profile->>'areaGeografica')
       ORDER BY count DESC
       LIMIT 10
     `;
@@ -112,11 +112,11 @@ export default async function handler(req, res) {
       SELECT
         feedback,
         rating,
-        timestamp,
+        "timestamp",
         profile->>'fasciaEta' as fascia_eta
       FROM azzurra_experiences
       WHERE feedback IS NOT NULL AND feedback != ''
-      ORDER BY timestamp DESC
+      ORDER BY "timestamp" DESC
       LIMIT 10
     `;
 
