@@ -137,7 +137,8 @@ export default async function handler(req, res) {
     console.error('Error fetching conversation analytics:', error);
     return res.status(500).json({
       error: 'Failed to fetch analytics',
-      details: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+      details: error.message,
+      stack: error.stack
     });
   }
 }
