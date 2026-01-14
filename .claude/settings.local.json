@@ -19,7 +19,9 @@
       "Bash(git commit:*)",
       "Bash(python3:*)",
       "Bash(node scripts/import-recipes.js:*)",
-      "WebFetch(domain:community.heygen.com)"
+      "WebFetch(domain:community.heygen.com)",
+      "Bash(file:*)",
+      "Bash(curl:*)"
     ]
   }
 }
