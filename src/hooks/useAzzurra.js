@@ -382,36 +382,40 @@ export function useAzzurra() {
   }, []);
 
   // Toggle mute microfono
-  const toggleMute = useCallback(() => {
+  const toggleMute = useCallback(async () => {
     if (!sessionRef.current || !isConnected) return;
 
-    if (isMuted) {
-      // Unmute
-      isMutedRef.current = false;
-      sessionRef.current.startListening();
-      setIsMuted(false);
-      console.log('🎤 Microphone UNMUTED - avatar ascolterà');
-    } else {
-      // Mute - ferma ascolto e svuota buffer
-      isMutedRef.current = true;
-      sessionRef.current.stopListening();
+    try {
+      if (isMuted) {
+        // Unmute - usa voiceChat.unmute() per unmutare la traccia audio
+        await sessionRef.current.voiceChat.unmute();
+        isMutedRef.current = false;
+        setIsMuted(false);
+        console.log('🎤 Microphone UNMUTED - traccia audio attiva');
+      } else {
+        // Mute - usa voiceChat.mute() per mutare effettivamente la traccia audio
+        await sessionRef.current.voiceChat.mute();
+        isMutedRef.current = true;
 
-      // Cancella eventuali timeout pendenti
-      if (fallbackTimeoutRef.current) {
-        clearTimeout(fallbackTimeoutRef.current);
-        fallbackTimeoutRef.current = null;
+        // Cancella eventuali timeout pendenti
+        if (fallbackTimeoutRef.current) {
+          clearTimeout(fallbackTimeoutRef.current);
+          fallbackTimeoutRef.current = null;
+        }
+        if (processDelayRef.current) {
+          clearTimeout(processDelayRef.current);
+          processDelayRef.current = null;
+        }
+
+        // Svuota il buffer
+        transcriptionBufferRef.current = '';
+
+        setIsMuted(true);
+        setIsListening(false);
+        console.log('🔇 Microphone MUTED - traccia audio disattivata');
       }
-      if (processDelayRef.current) {
-        clearTimeout(processDelayRef.current);
-        processDelayRef.current = null;
-      }
-
-      // Svuota il buffer
-      transcriptionBufferRef.current = '';
-
-      setIsMuted(true);
-      setIsListening(false);
-      console.log('🔇 Microphone MUTED - avatar NON ascolterà');
+    } catch (err) {
+      console.error('Errore toggle mute:', err);
     }
   }, [isConnected, isMuted]);
 
