@@ -168,10 +168,15 @@ function DNABar({ name, percentage, delay = 0 }) {
   );
 }
 
-// Componente: Timeline Dot
-function TimelineDot({ year, label, isActive }) {
+// Componente: Timeline Dot con posizione proporzionale
+function TimelineDot({ year, label, isActive, position }) {
   return (
-    <div style={styles.timelineDotContainer}>
+    <div style={{
+      ...styles.timelineDotContainer,
+      position: 'absolute',
+      left: `${position}%`,
+      transform: 'translateX(-50%)'
+    }}>
       <div style={{
         ...styles.timelineDot,
         background: isActive ? COLORS.primary : COLORS.light
@@ -182,14 +187,24 @@ function TimelineDot({ year, label, isActive }) {
   );
 }
 
-// Sezione: Overview
-function OverviewSection({ stats, analytics }) {
+// Sezione: Overview - Focus su correlazioni e insights
+function OverviewSection({ stats, analytics, deepAnalytics }) {
   const g = analytics?.generalStats || {};
   const totalSessions = parseInt(g.total_conversations) || parseInt(stats?.stats?.total_experiences) || 0;
   const avgRating = parseFloat(g.avg_rating) || 0;
   const avgDuration = parseInt(stats?.stats?.avg_duration) || 0;
 
-  const trendData = analytics?.dailyTrend?.slice().reverse() || [];
+  // Dati da deep analytics
+  const topRatedRecipes = deepAnalytics?.topRatedRecipes?.slice(0, 3) || [];
+  const durationVsRating = deepAnalytics?.durationVsRating || [];
+  const peakHour = deepAnalytics?.peakQualityHour;
+
+  // Calcola insight correlazione durata-rating
+  const shortDuration = durationVsRating.find(d => d.durata_categoria?.includes('Breve'));
+  const longDuration = durationVsRating.find(d => d.durata_categoria?.includes('Lunga'));
+  const ratingDiff = longDuration && shortDuration
+    ? (parseFloat(longDuration.rating_medio) - parseFloat(shortDuration.rating_medio)).toFixed(1)
+    : null;
 
   return (
     <div style={styles.section}>
@@ -223,100 +238,96 @@ function OverviewSection({ stats, analytics }) {
         />
       </div>
 
-      {/* Charts Row */}
+      {/* Insights Row */}
       <div style={styles.chartsRow}>
-        <ChartCard title="Trend Ultimi 30 Giorni" height={250}>
-          {trendData.length > 0 ? (
-            <Line
-              data={{
-                labels: trendData.map(d =>
-                  new Date(d.date).toLocaleDateString('it-IT', { day: '2-digit', month: 'short' })
-                ),
-                datasets: [{
-                  label: 'Sessioni',
-                  data: trendData.map(d => parseInt(d.count)),
-                  borderColor: COLORS.primary,
-                  backgroundColor: `${COLORS.primary}20`,
-                  fill: true,
-                  tension: 0.4,
-                  pointBackgroundColor: COLORS.primary,
-                  pointRadius: 3,
-                  pointHoverRadius: 6
-                }]
-              }}
-              options={{
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: { legend: { display: false } },
-                scales: {
-                  y: { beginAtZero: true, grid: { color: `${COLORS.border}50` } },
-                  x: { grid: { display: false } }
-                }
-              }}
-            />
-          ) : (
-            <NoDataMessage message="Nessun dato disponibile" />
-          )}
-        </ChartCard>
+        {/* Top 3 Ricette Amate */}
+        <div style={styles.chartCard}>
+          <h3 style={styles.chartTitle}>Top 3 Ricette Piu Amate</h3>
+          <p style={styles.chartSubtitle}>Basate sul rating medio delle conversazioni</p>
+          <div style={styles.topRecipesList}>
+            {topRatedRecipes.length > 0 ? topRatedRecipes.map((recipe, i) => (
+              <div key={i} style={styles.topRecipeItem}>
+                <div style={{
+                  ...styles.topRecipeRank,
+                  background: i === 0 ? '#ffd700' : i === 1 ? '#c0c0c0' : '#cd7f32'
+                }}>
+                  {i + 1}
+                </div>
+                <div style={styles.topRecipeInfo}>
+                  <div style={styles.topRecipeName}>{recipe.ricetta}</div>
+                  <div style={styles.topRecipeStats}>
+                    <span style={styles.topRecipeRating}>
+                      {'★'.repeat(Math.round(parseFloat(recipe.rating_medio)))}
+                      {' '}{parseFloat(recipe.rating_medio).toFixed(1)}
+                    </span>
+                    <span style={styles.topRecipeCount}>
+                      {recipe.volte_discussa} conversazioni
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )) : (
+              <NoDataMessage message="Nessuna ricetta con rating disponibile" />
+            )}
+          </div>
+        </div>
 
-        <ChartCard title="Distribuzione Rating" height={250}>
-          {analytics?.ratingDistribution?.length > 0 ? (
-            <Doughnut
-              data={{
-                labels: analytics.ratingDistribution.map(r => `${r.rating} stelle`),
-                datasets: [{
-                  data: analytics.ratingDistribution.map(r => parseInt(r.count)),
-                  backgroundColor: CHART_COLORS,
-                  borderWidth: 0
-                }]
-              }}
-              options={{
-                responsive: true,
-                maintainAspectRatio: false,
-                cutout: '65%',
-                plugins: {
-                  legend: { position: 'right', labels: { usePointStyle: true, padding: 15 } }
-                }
-              }}
-            />
+        {/* Correlazione Durata-Soddisfazione */}
+        <div style={styles.chartCard}>
+          <h3 style={styles.chartTitle}>Correlazione Durata-Soddisfazione</h3>
+          <p style={styles.chartSubtitle}>Come la durata influisce sul rating</p>
+          {durationVsRating.length > 0 ? (
+            <>
+              <div style={styles.correlationBars}>
+                {durationVsRating.map((d, i) => (
+                  <div key={i} style={styles.correlationItem}>
+                    <div style={styles.correlationLabel}>{d.durata_categoria}</div>
+                    <div style={styles.correlationBarTrack}>
+                      <div style={{
+                        ...styles.correlationBarFill,
+                        width: `${(parseFloat(d.rating_medio) / 5) * 100}%`,
+                        background: parseFloat(d.rating_medio) >= 4
+                          ? `linear-gradient(90deg, ${COLORS.accent} 0%, ${COLORS.primary} 100%)`
+                          : COLORS.light
+                      }} />
+                    </div>
+                    <div style={styles.correlationValue}>
+                      {parseFloat(d.rating_medio).toFixed(1)}★
+                    </div>
+                    <div style={styles.correlationCount}>
+                      {d.sessioni} sessioni
+                    </div>
+                  </div>
+                ))}
+              </div>
+              {ratingDiff && parseFloat(ratingDiff) > 0 && (
+                <div style={styles.insightBox}>
+                  <span style={styles.insightBoxIcon}>💡</span>
+                  <span style={styles.insightBoxText}>
+                    Le sessioni lunghe hanno un rating +{ratingDiff} punti rispetto alle brevi
+                  </span>
+                </div>
+              )}
+            </>
           ) : (
-            <NoDataMessage message="Nessun rating ancora registrato" />
+            <NoDataMessage message="Dati insufficienti per la correlazione" />
           )}
-        </ChartCard>
+        </div>
       </div>
 
-      {/* Orari Heatmap */}
-      <ChartCard title="Attivita per Ora del Giorno" height={200}>
-        {analytics?.hourlyDistribution?.length > 0 ? (
-          <Bar
-            data={{
-              labels: analytics.hourlyDistribution.map(h => `${h.hour}:00`),
-              datasets: [{
-                label: 'Sessioni',
-                data: analytics.hourlyDistribution.map(h => parseInt(h.count)),
-                backgroundColor: analytics.hourlyDistribution.map((h) => {
-                  const hour = parseInt(h.hour);
-                  if (hour >= 10 && hour <= 13) return COLORS.primary;
-                  if (hour >= 15 && hour <= 19) return COLORS.accent;
-                  return COLORS.light;
-                }),
-                borderRadius: 6
-              }]
-            }}
-            options={{
-              responsive: true,
-              maintainAspectRatio: false,
-              plugins: { legend: { display: false } },
-              scales: {
-                y: { beginAtZero: true, grid: { color: `${COLORS.border}50` } },
-                x: { grid: { display: false } }
-              }
-            }}
-          />
-        ) : (
-          <NoDataMessage message="Nessun dato disponibile" />
-        )}
-      </ChartCard>
+      {/* Momento d'Oro */}
+      {peakHour && (
+        <div style={styles.goldenMomentCard}>
+          <div style={styles.goldenMomentIcon}>🏆</div>
+          <div style={styles.goldenMomentContent}>
+            <div style={styles.goldenMomentTitle}>Momento d'Oro</div>
+            <div style={styles.goldenMomentText}>
+              Le ore <strong>{parseInt(peakHour.ora)}:00</strong> sono quelle con il rating piu alto
+              (<strong>{parseFloat(peakHour.rating_medio).toFixed(1)}★</strong> su {peakHour.sessioni} sessioni)
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -339,8 +350,8 @@ function NoDataMessage({ message }) {
   );
 }
 
-// Sezione: Ricette
-function RecipesSection({ curiosities }) {
+// Sezione: Ricette - Focus su evoluzione e pattern
+function RecipesSection({ curiosities, deepAnalytics }) {
   if (!curiosities) return <EmptyState message="Dati ricette non disponibili" />;
 
   const timeline = [
@@ -351,83 +362,101 @@ function RecipesSection({ curiosities }) {
     { year: 2020, label: 'Moderno' }
   ];
 
-  // DNA Pasticceria - Ingredienti più comuni (simulati, in futuro da API)
-  const dnaIngredients = [
-    { name: 'Uova', percentage: 92 },
-    { name: 'Zucchero', percentage: 89 },
-    { name: 'Farina', percentage: 85 },
-    { name: 'Burro', percentage: 72 },
-    { name: 'Latte', percentage: 58 },
-    { name: 'Vaniglia', percentage: 45 }
-  ];
+  // DNA Pasticceria da API (con fallback)
+  const dnaIngredients = deepAnalytics?.realDnaIngredients?.length > 0
+    ? deepAnalytics.realDnaIngredients.slice(0, 8)
+    : [
+        { name: 'Uova', percentage: 92 },
+        { name: 'Zucchero', percentage: 89 },
+        { name: 'Farina', percentage: 85 },
+        { name: 'Burro', percentage: 72 },
+        { name: 'Latte', percentage: 58 },
+        { name: 'Vaniglia', percentage: 45 }
+      ];
+
+  // Evoluzione calorica per decennio
+  const caloriesByDecade = deepAnalytics?.caloriesByDecade || [];
+
+  // Ricette con piu versioni
+  const topVersionedRecipes = deepAnalytics?.topVersionedRecipes || [];
 
   return (
     <div style={styles.section}>
-      {/* KPI Ricette */}
-      <div style={styles.metricsGrid}>
-        <MetricCard
-          icon={<BookIcon />}
-          value={curiosities.totalVersions || 242}
-          label="Versioni Storiche"
-          delay={0}
-        />
-        <MetricCard
-          icon={<FireIcon />}
-          value={curiosities.avgCalories || 524}
-          label="Calorie Medie"
-          suffix=" kcal"
-          delay={0.1}
-        />
-        <MetricCard
-          icon={<LayersIcon />}
-          value={curiosities.cookbooksCount || 7}
-          label="Ricettari"
-          delay={0.2}
-        />
-      </div>
-
-      {/* Timeline Ricettari */}
+      {/* Timeline Ricettari - Proporzionale */}
       <div style={styles.chartCard}>
         <h3 style={styles.chartTitle}>Timeline dei Ricettari (1891 - 2020)</h3>
         <div style={styles.timeline}>
           <div style={styles.timelineLine} />
-          {timeline.map((t, i) => (
-            <TimelineDot key={i} year={t.year} label={t.label} isActive={i === 0 || i === timeline.length - 1} />
-          ))}
+          {timeline.map((t, i) => {
+            const minYear = 1891;
+            const maxYear = 2020;
+            const position = ((t.year - minYear) / (maxYear - minYear)) * 80 + 10;
+            return (
+              <TimelineDot
+                key={i}
+                year={t.year}
+                label={t.label}
+                isActive={i === 0 || i === timeline.length - 1}
+                position={position}
+              />
+            );
+          })}
         </div>
       </div>
 
       <div style={styles.chartsRow}>
-        {/* Categorie Dolci */}
-        <ChartCard title="Categorie Dolci" height={280}>
-          {curiosities.familyDistribution?.length > 0 ? (
-            <Doughnut
+        {/* Evoluzione Calorica */}
+        <ChartCard title="Evoluzione Calorica per Decennio" height={280}>
+          {caloriesByDecade.length > 0 ? (
+            <Line
               data={{
-                labels: curiosities.familyDistribution.map(f => f.famiglia),
+                labels: caloriesByDecade.map(d => d.decade + 's'),
                 datasets: [{
-                  data: curiosities.familyDistribution.map(f => parseInt(f.count)),
-                  backgroundColor: CHART_COLORS,
-                  borderWidth: 2,
-                  borderColor: COLORS.white
+                  label: 'kcal medie',
+                  data: caloriesByDecade.map(d => d.avgCalories),
+                  borderColor: COLORS.primary,
+                  backgroundColor: `${COLORS.primary}30`,
+                  fill: true,
+                  tension: 0.3,
+                  pointBackgroundColor: COLORS.primary,
+                  pointRadius: 6,
+                  pointHoverRadius: 8
                 }]
               }}
               options={{
                 responsive: true,
                 maintainAspectRatio: false,
                 plugins: {
-                  legend: { position: 'right', labels: { usePointStyle: true, padding: 10 } }
+                  legend: { display: false },
+                  tooltip: {
+                    callbacks: {
+                      label: (ctx) => `${ctx.raw} kcal medie`
+                    }
+                  }
+                },
+                scales: {
+                  y: {
+                    beginAtZero: false,
+                    grid: { color: `${COLORS.border}50` },
+                    title: { display: true, text: 'kcal', color: COLORS.textLight }
+                  },
+                  x: { grid: { display: false } }
                 }
               }}
             />
           ) : (
-            <NoDataMessage message="Nessun dato disponibile" />
+            <NoDataMessage message="Dati calorici non disponibili" />
           )}
         </ChartCard>
 
-        {/* DNA Pasticceria */}
+        {/* DNA Pasticceria - DA API */}
         <div style={styles.chartCard}>
           <h3 style={styles.chartTitle}>DNA della Pasticceria Italiana</h3>
-          <p style={styles.chartSubtitle}>Ingredienti piu comuni nelle ricette tradizionali</p>
+          <p style={styles.chartSubtitle}>
+            {deepAnalytics?.realDnaIngredients
+              ? 'Ingredienti piu comuni calcolati da tutte le ricette'
+              : 'Ingredienti tradizionali (dati stimati)'}
+          </p>
           <div style={styles.dnaContainer}>
             {dnaIngredients.map((ing, i) => (
               <DNABar key={i} name={ing.name} percentage={ing.percentage} delay={0.1 * i} />
@@ -435,6 +464,24 @@ function RecipesSection({ curiosities }) {
           </div>
         </div>
       </div>
+
+      {/* Ricette con piu versioni */}
+      {topVersionedRecipes.length > 0 && (
+        <div style={styles.chartCard}>
+          <h3 style={styles.chartTitle}>Ricette piu Rivisitate</h3>
+          <p style={styles.chartSubtitle}>Le ricette con piu versioni storiche nel database</p>
+          <div style={styles.versionedRecipesList}>
+            {topVersionedRecipes.map((recipe, i) => (
+              <div key={i} style={styles.versionedRecipeItem}>
+                <div style={styles.versionedRecipeName}>{recipe.title}</div>
+                <div style={styles.versionedRecipeBadge}>
+                  {recipe.versions} versioni
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Ricette Iconiche */}
       <div style={styles.chartCard}>
@@ -478,148 +525,290 @@ function RecipesSection({ curiosities }) {
   );
 }
 
-// Sezione: Utenti
-function UsersSection({ analytics, stats }) {
-  // Normalizza e deduplica regioni
-  const normalizedRegions = stats?.topRegions?.reduce((acc, r) => {
-    const normalized = capitalize(r.region || 'Non specificata');
-    const existing = acc.find(x => x.region === normalized);
-    if (existing) {
-      existing.count += parseInt(r.count);
-    } else {
-      acc.push({ region: normalized, count: parseInt(r.count) });
-    }
-    return acc;
-  }, [])?.sort((a, b) => b.count - a.count)?.slice(0, 8) || [];
+// Sezione: Utenti - Focus su cross-correlazioni profilo-ricette-rating
+function UsersSection({ analytics, stats, deepAnalytics }) {
+  // Engagement per tipo utente (rapporto col cibo)
+  const engagementByFoodRelation = deepAnalytics?.engagementByFoodRelation || [];
 
-  const maxRegionCount = normalizedRegions[0]?.count || 1;
+  // Ricette per fascia eta
+  const recipesByAge = deepAnalytics?.recipesByAge || {};
+
+  // Indice esplorazione
+  const explorationIndex = deepAnalytics?.explorationIndex || [];
+
+  // Engagement per area
+  const engagementByArea = deepAnalytics?.engagementByArea?.slice(0, 6) || [];
 
   return (
     <div style={styles.section}>
-      <div style={styles.chartsRow}>
-        {/* Distribuzione Eta */}
-        <ChartCard title="Distribuzione per Eta" height={280}>
-          {analytics?.ageDistribution?.length > 0 ? (
-            <Bar
-              data={{
-                labels: analytics.ageDistribution.map(a => a.fascia_eta || 'N/A'),
-                datasets: [{
-                  label: 'Utenti',
-                  data: analytics.ageDistribution.map(a => parseInt(a.count)),
-                  backgroundColor: COLORS.primary,
-                  borderRadius: 8
-                }]
-              }}
-              options={{
-                responsive: true,
-                maintainAspectRatio: false,
-                indexAxis: 'y',
-                plugins: { legend: { display: false } },
-                scales: {
-                  x: { grid: { color: `${COLORS.border}50` } },
-                  y: { grid: { display: false } }
-                }
-              }}
-            />
-          ) : (
-            <NoDataMessage message="Nessun dato disponibile" />
-          )}
-        </ChartCard>
-
-        {/* Distribuzione Sesso */}
-        <ChartCard title="Distribuzione per Sesso" height={280}>
-          {analytics?.genderDistribution?.length > 0 ? (
-            <Doughnut
-              data={{
-                labels: analytics.genderDistribution.map(g => g.sesso || 'Non specificato'),
-                datasets: [{
-                  data: analytics.genderDistribution.map(g => parseInt(g.count)),
-                  backgroundColor: [COLORS.primary, COLORS.accent, COLORS.light],
-                  borderWidth: 0
-                }]
-              }}
-              options={{
-                responsive: true,
-                maintainAspectRatio: false,
-                cutout: '60%',
-                plugins: {
-                  legend: { position: 'bottom', labels: { usePointStyle: true } }
-                }
-              }}
-            />
-          ) : (
-            <NoDataMessage message="Nessun dato disponibile" />
-          )}
-        </ChartCard>
+      {/* Header sezione */}
+      <div style={styles.sectionHeader}>
+        <h2 style={styles.sectionTitle}>Correlazioni Profilo-Comportamento</h2>
+        <p style={styles.sectionSubtitle}>Come i diversi profili utente interagiscono con Azzurra</p>
       </div>
 
-      {/* Top Regioni */}
-      <div style={styles.chartCard}>
-        <h3 style={styles.chartTitle}>Distribuzione Geografica</h3>
-        <div style={styles.regionsContainer}>
-          {normalizedRegions.map((region, i) => (
-            <div key={i} style={styles.regionRow}>
-              <div style={styles.regionRank}>{i + 1}</div>
-              <div style={styles.regionInfo}>
-                <div style={styles.regionName}>{region.region}</div>
-                <div style={styles.regionBarTrack}>
-                  <div style={{
-                    ...styles.regionBarFill,
-                    width: `${(region.count / maxRegionCount) * 100}%`
-                  }} />
+      <div style={styles.chartsRow}>
+        {/* Engagement per Tipo Utente */}
+        <div style={styles.chartCard}>
+          <h3 style={styles.chartTitle}>Engagement per Rapporto col Cibo</h3>
+          <p style={styles.chartSubtitle}>Rating e durata media per tipologia utente</p>
+          {engagementByFoodRelation.length > 0 ? (
+            <div style={styles.engagementList}>
+              {engagementByFoodRelation.map((item, i) => (
+                <div key={i} style={styles.engagementItem}>
+                  <div style={styles.engagementType}>
+                    <span style={styles.engagementIcon}>
+                      {item.tipo === 'Curioso' ? '🔍' :
+                       item.tipo === 'Goloso' ? '🍰' :
+                       item.tipo === 'Gourmet' ? '👨‍🍳' :
+                       item.tipo === 'Professionale' ? '🎓' : '🍽️'}
+                    </span>
+                    <span style={styles.engagementTypeName}>{item.tipo || 'Non specificato'}</span>
+                  </div>
+                  <div style={styles.engagementMetrics}>
+                    <div style={styles.engagementMetric}>
+                      <span style={styles.engagementValue}>
+                        {parseFloat(item.rating_medio).toFixed(1)}★
+                      </span>
+                      <span style={styles.engagementLabel}>rating</span>
+                    </div>
+                    <div style={styles.engagementMetric}>
+                      <span style={styles.engagementValue}>
+                        {formatDuration(parseFloat(item.durata_media))}
+                      </span>
+                      <span style={styles.engagementLabel}>durata</span>
+                    </div>
+                    <div style={styles.engagementMetric}>
+                      <span style={styles.engagementValue}>{item.sessioni}</span>
+                      <span style={styles.engagementLabel}>sessioni</span>
+                    </div>
+                  </div>
                 </div>
-              </div>
-              <div style={styles.regionCount}>{region.count}</div>
+              ))}
             </div>
-          ))}
+          ) : (
+            <NoDataMessage message="Nessun dato sul rapporto col cibo" />
+          )}
+        </div>
+
+        {/* Indice Esplorazione */}
+        <div style={styles.chartCard}>
+          <h3 style={styles.chartTitle}>Indice di Esplorazione</h3>
+          <p style={styles.chartSubtitle}>Quante ricette esplorano gli utenti per sessione?</p>
+          {explorationIndex.length > 0 ? (
+            <>
+              <div style={styles.explorationBars}>
+                {explorationIndex.map((item, i) => {
+                  const total = explorationIndex.reduce((acc, x) => acc + parseInt(x.utenti), 0);
+                  const percentage = Math.round((parseInt(item.utenti) / total) * 100);
+                  return (
+                    <div key={i} style={styles.explorationItem}>
+                      <div style={styles.explorationLabel}>{item.livello_esplorazione}</div>
+                      <div style={styles.explorationBarTrack}>
+                        <div style={{
+                          ...styles.explorationBarFill,
+                          width: `${percentage}%`
+                        }} />
+                      </div>
+                      <div style={styles.explorationStats}>
+                        <span style={styles.explorationPercent}>{percentage}%</span>
+                        <span style={styles.explorationRating}>
+                          ({parseFloat(item.rating_medio).toFixed(1)}★)
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              <div style={styles.insightBox}>
+                <span style={styles.insightBoxIcon}>💡</span>
+                <span style={styles.insightBoxText}>
+                  Chi esplora piu ricette tende ad avere rating piu alti
+                </span>
+              </div>
+            </>
+          ) : (
+            <NoDataMessage message="Dati esplorazione non disponibili" />
+          )}
         </div>
       </div>
+
+      {/* Ricette preferite per fascia eta */}
+      {Object.keys(recipesByAge).length > 0 && (
+        <div style={styles.chartCard}>
+          <h3 style={styles.chartTitle}>Chi Ama Cosa: Ricette per Fascia d'Eta</h3>
+          <p style={styles.chartSubtitle}>Le ricette piu discusse per ogni generazione</p>
+          <div style={styles.ageRecipesGrid}>
+            {Object.entries(recipesByAge).map(([eta, ricette], i) => (
+              <div key={i} style={styles.ageRecipeCard}>
+                <div style={styles.ageRecipeHeader}>
+                  <span style={styles.ageRecipeAge}>{eta}</span>
+                </div>
+                <div style={styles.ageRecipeList}>
+                  {ricette.slice(0, 3).map((r, j) => (
+                    <div key={j} style={styles.ageRecipeItem}>
+                      <span style={styles.ageRecipeRank}>{j + 1}.</span>
+                      <span style={styles.ageRecipeName}>{r.ricetta}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Engagement per Area Geografica */}
+      {engagementByArea.length > 0 && (
+        <div style={styles.chartCard}>
+          <h3 style={styles.chartTitle}>Soddisfazione per Area Geografica</h3>
+          <p style={styles.chartSubtitle}>Rating e engagement per regione</p>
+          <div style={styles.areaEngagementGrid}>
+            {engagementByArea.map((area, i) => (
+              <div key={i} style={styles.areaEngagementItem}>
+                <div style={styles.areaName}>{area.area}</div>
+                <div style={styles.areaMetrics}>
+                  <span style={styles.areaRating}>
+                    {parseFloat(area.rating_medio).toFixed(1)}★
+                  </span>
+                  <span style={styles.areaDuration}>
+                    {formatDuration(parseFloat(area.durata_media))}
+                  </span>
+                  <span style={styles.areaSessions}>
+                    {area.sessioni} sessioni
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
-// Sezione: Insights
-function InsightsSection({ analytics, curiosities }) {
+// Sezione: Insights - Dinamici da dati reali
+function InsightsSection({ analytics, curiosities, deepAnalytics }) {
   const g = analytics?.generalStats || {};
 
-  const insights = [
-    {
-      icon: '🧬',
-      title: 'DNA della Pasticceria',
-      text: 'Uova, zucchero e farina sono la base del 92% dei dolci tradizionali italiani - il vero DNA della nostra pasticceria.'
-    },
-    {
-      icon: '📈',
-      title: 'Evoluzione Storica',
-      text: `Dal 1891 al 2020, le ricette italiane hanno visto un aumento medio di 87 calorie per porzione, segno dell'evoluzione del gusto.`
-    },
-    {
+  // Genera insights dinamici basati sui dati reali
+  const generateDynamicInsights = () => {
+    const insights = [];
+
+    // 1. DNA Pasticceria (da dati reali se disponibili)
+    const topIngredient = deepAnalytics?.realDnaIngredients?.[0];
+    if (topIngredient) {
+      insights.push({
+        icon: '🧬',
+        title: 'DNA della Pasticceria',
+        text: `${topIngredient.name} e l'ingrediente piu comune, presente nel ${topIngredient.percentage}% delle ricette tradizionali italiane.`
+      });
+    } else {
+      insights.push({
+        icon: '🧬',
+        title: 'DNA della Pasticceria',
+        text: 'Uova, zucchero e farina sono la base del 92% dei dolci tradizionali italiani - il vero DNA della nostra pasticceria.'
+      });
+    }
+
+    // 2. Evoluzione Calorica (da dati reali)
+    const calorieData = deepAnalytics?.caloriesByDecade;
+    if (calorieData?.length >= 2) {
+      const oldest = calorieData[0];
+      const newest = calorieData[calorieData.length - 1];
+      const diff = newest.avgCalories - oldest.avgCalories;
+      insights.push({
+        icon: '📈',
+        title: 'Evoluzione Calorica',
+        text: `Dal ${oldest.decade} al ${newest.decade}, le calorie medie sono passate da ${oldest.avgCalories} a ${newest.avgCalories} kcal (${diff > 0 ? '+' : ''}${diff} kcal).`
+      });
+    } else {
+      insights.push({
+        icon: '📈',
+        title: 'Evoluzione Storica',
+        text: 'Dal 1891 al 2020, le ricette italiane hanno visto un aumento medio di 87 calorie per porzione.'
+      });
+    }
+
+    // 3. Correlazione Durata-Rating
+    const durationData = deepAnalytics?.durationVsRating;
+    const longSession = durationData?.find(d => d.durata_categoria?.includes('Lunga'));
+    const shortSession = durationData?.find(d => d.durata_categoria?.includes('Breve'));
+    if (longSession && shortSession) {
+      const diff = (parseFloat(longSession.rating_medio) - parseFloat(shortSession.rating_medio)).toFixed(1);
+      if (parseFloat(diff) > 0) {
+        insights.push({
+          icon: '⏱️',
+          title: 'Correlazione Nascosta',
+          text: `Le sessioni lunghe (>3 min) hanno un rating +${diff} punti rispetto alle brevi - piu tempo = piu soddisfazione!`
+        });
+      }
+    }
+
+    // 4. Momento d'Oro
+    const peakHour = deepAnalytics?.peakQualityHour;
+    if (peakHour) {
+      insights.push({
+        icon: '🏆',
+        title: 'Momento d\'Oro',
+        text: `Le ore ${parseInt(peakHour.ora)}:00 registrano il rating piu alto (${parseFloat(peakHour.rating_medio).toFixed(1)}★). E il momento migliore per parlare di dolci!`
+      });
+    }
+
+    // 5. Top Ricetta Amata
+    const topRecipe = deepAnalytics?.topRatedRecipes?.[0];
+    if (topRecipe) {
+      insights.push({
+        icon: '❤️',
+        title: 'Ricetta piu Amata',
+        text: `"${topRecipe.ricetta}" e la ricetta con il rating piu alto (${parseFloat(topRecipe.rating_medio).toFixed(1)}★), discussa in ${topRecipe.volte_discussa} conversazioni.`
+      });
+    }
+
+    // 6. Indice Esplorazione
+    const exploration = deepAnalytics?.explorationIndex;
+    if (exploration?.length > 0) {
+      const multiRecipe = exploration.find(e => e.livello_esplorazione?.includes('3+'));
+      const singleRecipe = exploration.find(e => e.livello_esplorazione?.includes('1 '));
+      if (multiRecipe && singleRecipe) {
+        const diff = (parseFloat(multiRecipe.rating_medio) - parseFloat(singleRecipe.rating_medio)).toFixed(1);
+        if (parseFloat(diff) > 0) {
+          insights.push({
+            icon: '🔍',
+            title: 'Esploratori Felici',
+            text: `Chi esplora 3+ ricette ha un rating +${diff} punti rispetto a chi ne esplora solo 1. La curiosita paga!`
+          });
+        }
+      }
+    }
+
+    // 7. Ricettari a confronto (statico ma interessante)
+    insights.push({
       icon: '📚',
       title: 'Ricettari a Confronto',
-      text: 'L\'Artusi (1891) usa in media 6 ingredienti per ricetta, il Cucchiaio d\'Argento (2020) ne usa 9 - la complessità cresce!'
-    },
-    {
-      icon: '⭐',
-      title: 'Feedback Utenti',
-      text: `Rating medio di ${(parseFloat(g.avg_rating) || 0).toFixed(1)}/5 con ${g.positive_ratings || 0} feedback positivi. Gli utenti apprezzano Azzurra!`
-    },
-    {
-      icon: '🕐',
-      title: 'Orari di Picco',
-      text: 'Le conversazioni con Azzurra si concentrano tra le 10:00-13:00 e le 15:00-19:00 - orari da veri golosi!'
-    },
-    {
-      icon: '🗺️',
-      title: 'Geografia dei Dolci',
-      text: 'Lazio e Toscana dominano le interazioni, seguite da Sicilia e Lombardia - il centro Italia ama i dolci!'
+      text: 'L\'Artusi (1891) usa in media 6 ingredienti per ricetta, il Cucchiaio d\'Argento (2020) ne usa 9 - la complessita cresce!'
+    });
+
+    // 8. Engagement per tipo utente
+    const topEngagement = deepAnalytics?.engagementByFoodRelation?.[0];
+    if (topEngagement) {
+      insights.push({
+        icon: '👥',
+        title: 'Profilo piu Coinvolto',
+        text: `Gli utenti "${topEngagement.tipo}" hanno il rating medio piu alto (${parseFloat(topEngagement.rating_medio).toFixed(1)}★) e sessioni di ${formatDuration(parseFloat(topEngagement.durata_media))}.`
+      });
     }
-  ];
+
+    return insights.slice(0, 6); // Massimo 6 insights
+  };
+
+  const insights = generateDynamicInsights();
 
   return (
     <div style={styles.section}>
       <div style={styles.insightsHeader}>
         <h2 style={styles.insightsTitle}>Scoperte dai Dati</h2>
-        <p style={styles.insightsSubtitle}>Correlazioni e pattern nascosti nelle ricette e nelle conversazioni</p>
+        <p style={styles.insightsSubtitle}>Correlazioni e pattern nascosti calcolati in tempo reale</p>
       </div>
 
       <div style={styles.insightsGrid}>
@@ -633,28 +822,6 @@ function InsightsSection({ analytics, curiosities }) {
           />
         ))}
       </div>
-
-      {/* Feedback recenti */}
-      {analytics?.recentFeedback?.length > 0 && (
-        <div style={styles.chartCard}>
-          <h3 style={styles.chartTitle}>Ultimi Feedback</h3>
-          <div style={styles.feedbackList}>
-            {analytics.recentFeedback.slice(0, 5).map((fb, i) => (
-              <div key={i} style={styles.feedbackItem}>
-                <div style={styles.feedbackHeader}>
-                  <div style={styles.feedbackStars}>
-                    {'★'.repeat(fb.rating || 0)}{'☆'.repeat(5 - (fb.rating || 0))}
-                  </div>
-                  <div style={styles.feedbackDate}>
-                    {new Date(fb.timestamp).toLocaleDateString('it-IT')}
-                  </div>
-                </div>
-                <p style={styles.feedbackText}>{fb.feedback}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
     </div>
   );
 }
@@ -751,20 +918,23 @@ export default function Dashboard() {
   const [stats, setStats] = useState(null);
   const [curiosities, setCuriosities] = useState(null);
   const [analytics, setAnalytics] = useState(null);
+  const [deepAnalytics, setDeepAnalytics] = useState(null);
 
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
       try {
-        const [statsRes, curiositiesRes, analyticsRes] = await Promise.all([
+        const [statsRes, curiositiesRes, analyticsRes, deepRes] = await Promise.all([
           fetch('/api/stats'),
           fetch('/api/curiosities'),
-          fetch('/api/conversation-analytics')
+          fetch('/api/conversation-analytics'),
+          fetch('/api/deep-analytics')
         ]);
 
         if (statsRes.ok) setStats(await statsRes.json());
         if (curiositiesRes.ok) setCuriosities(await curiositiesRes.json());
         if (analyticsRes.ok) setAnalytics(await analyticsRes.json());
+        if (deepRes.ok) setDeepAnalytics(await deepRes.json());
       } catch (err) {
         console.error('Errore caricamento dati:', err);
       } finally {
@@ -825,10 +995,10 @@ export default function Dashboard() {
           <LoadingState />
         ) : (
           <>
-            {activeSection === 'overview' && <OverviewSection stats={stats} analytics={analytics} />}
-            {activeSection === 'recipes' && <RecipesSection curiosities={curiosities} />}
-            {activeSection === 'users' && <UsersSection analytics={analytics} stats={stats} />}
-            {activeSection === 'insights' && <InsightsSection analytics={analytics} curiosities={curiosities} />}
+            {activeSection === 'overview' && <OverviewSection stats={stats} analytics={analytics} deepAnalytics={deepAnalytics} />}
+            {activeSection === 'recipes' && <RecipesSection curiosities={curiosities} deepAnalytics={deepAnalytics} />}
+            {activeSection === 'users' && <UsersSection analytics={analytics} stats={stats} deepAnalytics={deepAnalytics} />}
+            {activeSection === 'insights' && <InsightsSection analytics={analytics} curiosities={curiosities} deepAnalytics={deepAnalytics} />}
           </>
         )}
       </main>
@@ -1032,11 +1202,9 @@ const styles = {
   },
   // Timeline
   timeline: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    padding: '2rem 1rem',
-    position: 'relative'
+    position: 'relative',
+    height: '100px',
+    margin: '1rem 0'
   },
   timelineLine: {
     position: 'absolute',
@@ -1290,9 +1458,13 @@ const styles = {
   // Footer
   footer: {
     textAlign: 'center',
-    padding: '2rem',
-    color: COLORS.textLight,
-    fontSize: '0.85rem'
+    padding: '1.5rem 2rem',
+    color: COLORS.dark,
+    fontSize: '0.9rem',
+    fontWeight: '500',
+    backgroundColor: 'rgba(255,255,255,0.95)',
+    borderTop: `1px solid ${COLORS.light}`,
+    marginTop: '2rem'
   },
   // Loading
   loadingContainer: {
@@ -1330,5 +1502,376 @@ const styles = {
     fontSize: '3rem',
     marginBottom: '1rem',
     opacity: 0.5
+  },
+  // === NUOVI STILI PER DASHBOARD V2 ===
+
+  // Top Recipes List (Overview)
+  topRecipesList: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.75rem',
+    marginTop: '0.5rem'
+  },
+  topRecipeItem: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '1rem',
+    padding: '0.75rem',
+    background: COLORS.extraLight,
+    borderRadius: '12px'
+  },
+  topRecipeRank: {
+    width: '32px',
+    height: '32px',
+    borderRadius: '50%',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    color: COLORS.white,
+    fontWeight: '700',
+    fontSize: '0.9rem'
+  },
+  topRecipeInfo: {
+    flex: 1
+  },
+  topRecipeName: {
+    fontSize: '0.95rem',
+    fontWeight: '600',
+    color: COLORS.text
+  },
+  topRecipeStats: {
+    display: 'flex',
+    gap: '1rem',
+    marginTop: '0.25rem'
+  },
+  topRecipeRating: {
+    fontSize: '0.85rem',
+    color: '#ffc107',
+    fontWeight: '500'
+  },
+  topRecipeCount: {
+    fontSize: '0.8rem',
+    color: COLORS.textLight
+  },
+
+  // Correlation Bars (Overview)
+  correlationBars: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.75rem',
+    marginTop: '0.5rem'
+  },
+  correlationItem: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.75rem'
+  },
+  correlationLabel: {
+    width: '100px',
+    fontSize: '0.8rem',
+    color: COLORS.text,
+    fontWeight: '500'
+  },
+  correlationBarTrack: {
+    flex: 1,
+    height: '20px',
+    background: COLORS.extraLight,
+    borderRadius: '10px',
+    overflow: 'hidden'
+  },
+  correlationBarFill: {
+    height: '100%',
+    borderRadius: '10px',
+    transition: 'width 0.5s ease'
+  },
+  correlationValue: {
+    width: '45px',
+    fontSize: '0.85rem',
+    color: COLORS.primary,
+    fontWeight: '600',
+    textAlign: 'right'
+  },
+  correlationCount: {
+    width: '80px',
+    fontSize: '0.75rem',
+    color: COLORS.textLight,
+    textAlign: 'right'
+  },
+
+  // Golden Moment Card (Overview)
+  goldenMomentCard: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '1.5rem',
+    padding: '1.5rem',
+    background: `linear-gradient(135deg, #ffd700 0%, #ffb347 100%)`,
+    borderRadius: '20px',
+    boxShadow: `0 4px 20px rgba(255, 215, 0, 0.3)`
+  },
+  goldenMomentIcon: {
+    fontSize: '2.5rem'
+  },
+  goldenMomentContent: {
+    flex: 1
+  },
+  goldenMomentTitle: {
+    fontSize: '1.1rem',
+    fontWeight: '700',
+    color: COLORS.dark,
+    marginBottom: '0.25rem'
+  },
+  goldenMomentText: {
+    fontSize: '0.95rem',
+    color: COLORS.dark,
+    opacity: 0.9
+  },
+
+  // Insight Box (reusable)
+  insightBox: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.75rem',
+    marginTop: '1rem',
+    padding: '0.75rem 1rem',
+    background: `${COLORS.accent}15`,
+    borderRadius: '12px',
+    borderLeft: `4px solid ${COLORS.accent}`
+  },
+  insightBoxIcon: {
+    fontSize: '1.25rem'
+  },
+  insightBoxText: {
+    fontSize: '0.85rem',
+    color: COLORS.text,
+    fontWeight: '500'
+  },
+
+  // Versioned Recipes List (Recipes)
+  versionedRecipesList: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: '0.75rem',
+    marginTop: '0.5rem'
+  },
+  versionedRecipeItem: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.75rem',
+    padding: '0.5rem 1rem',
+    background: COLORS.extraLight,
+    borderRadius: '20px'
+  },
+  versionedRecipeName: {
+    fontSize: '0.9rem',
+    color: COLORS.text,
+    fontWeight: '500'
+  },
+  versionedRecipeBadge: {
+    fontSize: '0.75rem',
+    color: COLORS.white,
+    background: COLORS.primary,
+    padding: '0.25rem 0.5rem',
+    borderRadius: '10px',
+    fontWeight: '600'
+  },
+
+  // Section Header (Users)
+  sectionHeader: {
+    textAlign: 'center',
+    marginBottom: '1rem'
+  },
+  sectionTitle: {
+    fontSize: '1.3rem',
+    fontWeight: '700',
+    background: `linear-gradient(135deg, ${COLORS.primary} 0%, ${COLORS.dark} 100%)`,
+    WebkitBackgroundClip: 'text',
+    WebkitTextFillColor: 'transparent',
+    backgroundClip: 'text',
+    margin: 0
+  },
+  sectionSubtitle: {
+    color: COLORS.textLight,
+    fontSize: '0.9rem',
+    marginTop: '0.25rem'
+  },
+
+  // Engagement List (Users)
+  engagementList: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.75rem',
+    marginTop: '0.5rem'
+  },
+  engagementItem: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: '0.75rem 1rem',
+    background: COLORS.extraLight,
+    borderRadius: '12px'
+  },
+  engagementType: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.5rem'
+  },
+  engagementIcon: {
+    fontSize: '1.25rem'
+  },
+  engagementTypeName: {
+    fontSize: '0.9rem',
+    fontWeight: '600',
+    color: COLORS.text
+  },
+  engagementMetrics: {
+    display: 'flex',
+    gap: '1rem'
+  },
+  engagementMetric: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center'
+  },
+  engagementValue: {
+    fontSize: '0.95rem',
+    fontWeight: '700',
+    color: COLORS.primary
+  },
+  engagementLabel: {
+    fontSize: '0.7rem',
+    color: COLORS.textLight,
+    textTransform: 'uppercase'
+  },
+
+  // Exploration Bars (Users)
+  explorationBars: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.75rem',
+    marginTop: '0.5rem'
+  },
+  explorationItem: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.75rem'
+  },
+  explorationLabel: {
+    width: '90px',
+    fontSize: '0.8rem',
+    color: COLORS.text,
+    fontWeight: '500'
+  },
+  explorationBarTrack: {
+    flex: 1,
+    height: '16px',
+    background: COLORS.extraLight,
+    borderRadius: '8px',
+    overflow: 'hidden'
+  },
+  explorationBarFill: {
+    height: '100%',
+    background: `linear-gradient(90deg, ${COLORS.primary} 0%, ${COLORS.accent} 100%)`,
+    borderRadius: '8px',
+    transition: 'width 0.5s ease'
+  },
+  explorationStats: {
+    display: 'flex',
+    gap: '0.5rem',
+    minWidth: '80px'
+  },
+  explorationPercent: {
+    fontSize: '0.85rem',
+    fontWeight: '600',
+    color: COLORS.primary
+  },
+  explorationRating: {
+    fontSize: '0.8rem',
+    color: COLORS.textLight
+  },
+
+  // Age Recipes Grid (Users)
+  ageRecipesGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+    gap: '1rem',
+    marginTop: '0.5rem'
+  },
+  ageRecipeCard: {
+    background: COLORS.extraLight,
+    borderRadius: '16px',
+    padding: '1rem',
+    border: `1px solid ${COLORS.light}`
+  },
+  ageRecipeHeader: {
+    marginBottom: '0.75rem',
+    paddingBottom: '0.5rem',
+    borderBottom: `2px solid ${COLORS.primary}`
+  },
+  ageRecipeAge: {
+    fontSize: '0.9rem',
+    fontWeight: '700',
+    color: COLORS.primary
+  },
+  ageRecipeList: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.4rem'
+  },
+  ageRecipeItem: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.5rem'
+  },
+  ageRecipeRank: {
+    fontSize: '0.8rem',
+    color: COLORS.textLight,
+    fontWeight: '600'
+  },
+  ageRecipeName: {
+    fontSize: '0.85rem',
+    color: COLORS.text,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap'
+  },
+
+  // Area Engagement Grid (Users)
+  areaEngagementGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+    gap: '1rem',
+    marginTop: '0.5rem'
+  },
+  areaEngagementItem: {
+    background: COLORS.extraLight,
+    borderRadius: '12px',
+    padding: '1rem',
+    textAlign: 'center'
+  },
+  areaName: {
+    fontSize: '0.9rem',
+    fontWeight: '600',
+    color: COLORS.text,
+    marginBottom: '0.5rem'
+  },
+  areaMetrics: {
+    display: 'flex',
+    justifyContent: 'center',
+    gap: '0.75rem',
+    flexWrap: 'wrap'
+  },
+  areaRating: {
+    fontSize: '0.9rem',
+    fontWeight: '700',
+    color: '#ffc107'
+  },
+  areaDuration: {
+    fontSize: '0.85rem',
+    color: COLORS.primary,
+    fontWeight: '500'
+  },
+  areaSessions: {
+    fontSize: '0.8rem',
+    color: COLORS.textLight
   }
 };
