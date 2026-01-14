@@ -19,6 +19,9 @@ export function useAzzurra() {
 
   const sessionRef = useRef(null);
   const welcomeSentRef = useRef(false);
+  const transcriptionBufferRef = useRef('');
+  const transcriptionTimeoutRef = useRef(null);
+  const isProcessingRef = useRef(false);
 
   // Messaggio di benvenuto
   const WELCOME_MESSAGE = "Ciao sono Azzurra, l'avatar digitale di ECI, l'enciclopedia della Cucina Italiana, messo a punto da CREA, l'ente Italiano di ricerca sull'agroalimentare, con gli esperti di FIB per accompagnarti nell'affascinante mondo dell'alimentazione italiana. Oggi si parte per un viaggio all'insegna della dolcezza! Iniziamo!";
@@ -122,44 +125,74 @@ export function useAzzurra() {
         setIsListening(false);
       });
 
-      // Gestione trascrizione utente (da voice chat)
+      // Gestione trascrizione utente (da voice chat) con debounce
       session.on(AgentEventsEnum.USER_TRANSCRIPTION, async (event) => {
         console.log('USER_TRANSCRIPTION event received:', event);
-        const userMessage = event.text || event.transcript;
-        if (!userMessage) {
+        const text = event.text || event.transcript;
+        if (!text) {
           console.log('No text in transcription event');
           return;
         }
 
-        console.log('User message:', userMessage);
+        // Se stiamo già processando una risposta, ignora
+        if (isProcessingRef.current) {
+          console.log('Already processing, ignoring transcription');
+          return;
+        }
 
-        // Aggiorna history
-        setConversationHistory(prev => [...prev, { role: 'user', content: userMessage }]);
+        // Accumula il testo nel buffer
+        transcriptionBufferRef.current += ' ' + text;
+        transcriptionBufferRef.current = transcriptionBufferRef.current.trim();
+        console.log('Buffer updated:', transcriptionBufferRef.current);
 
-        try {
-          // Ottieni risposta da Claude
-          const reply = await getChatResponse(userMessage);
-          console.log('Claude reply:', reply);
+        // Cancella timeout precedente
+        if (transcriptionTimeoutRef.current) {
+          clearTimeout(transcriptionTimeoutRef.current);
+        }
+
+        // Imposta nuovo timeout - processa dopo 1.5 secondi di silenzio
+        transcriptionTimeoutRef.current = setTimeout(async () => {
+          const userMessage = transcriptionBufferRef.current;
+          transcriptionBufferRef.current = ''; // Reset buffer
+
+          if (!userMessage || userMessage.length < 3) {
+            console.log('Message too short, ignoring');
+            return;
+          }
+
+          console.log('Processing complete message:', userMessage);
+          isProcessingRef.current = true;
 
           // Aggiorna history
-          setConversationHistory(prev => [...prev, { role: 'assistant', content: reply }]);
+          setConversationHistory(prev => [...prev, { role: 'user', content: userMessage }]);
 
-          // Fai parlare Azzurra con repeat()
           try {
-            session.repeat(reply);
-            console.log('Reply sent to avatar');
-          } catch (speakErr) {
-            console.error('Error sending reply to avatar:', speakErr);
+            // Ottieni risposta da Claude
+            const reply = await getChatResponse(userMessage);
+            console.log('Claude reply:', reply);
+
+            // Aggiorna history
+            setConversationHistory(prev => [...prev, { role: 'assistant', content: reply }]);
+
+            // Fai parlare Azzurra con repeat()
+            try {
+              session.repeat(reply);
+              console.log('Reply sent to avatar');
+            } catch (speakErr) {
+              console.error('Error sending reply to avatar:', speakErr);
+            }
+          } catch (err) {
+            console.error('Error getting response:', err);
+            // Risposta di fallback
+            try {
+              session.repeat("Scusami, non ho capito bene. Puoi ripetere?");
+            } catch (fallbackErr) {
+              console.error('Error sending fallback:', fallbackErr);
+            }
+          } finally {
+            isProcessingRef.current = false;
           }
-        } catch (err) {
-          console.error('Error getting response:', err);
-          // Risposta di fallback
-          try {
-            session.repeat("Scusami, non ho capito bene. Puoi ripetere?");
-          } catch (fallbackErr) {
-            console.error('Error sending fallback:', fallbackErr);
-          }
-        }
+        }, 1500); // 1.5 secondi di attesa
       });
 
       // Avvia sessione
