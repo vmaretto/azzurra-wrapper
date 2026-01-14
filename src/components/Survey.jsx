@@ -114,7 +114,10 @@ export default function Survey({ duration, profile, output, onRestart }) {
           )}
 
           {output && output.conversationHistory && (
-            <RecipeResults conversationHistory={output.conversationHistory} />
+            <RecipeResults
+              conversationHistory={output.conversationHistory}
+              discussedRecipes={output.discussedRecipes}
+            />
           )}
 
           <h3>Valuta l'esperienza</h3>

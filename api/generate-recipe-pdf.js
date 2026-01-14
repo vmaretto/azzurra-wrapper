@@ -231,15 +231,43 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const { conversationHistory } = req.body;
+  const { conversationHistory, discussedRecipes } = req.body;
 
   if (!conversationHistory || conversationHistory.length === 0) {
     return res.status(400).json({ error: 'conversationHistory is required' });
   }
 
   try {
-    // Estrai ricette menzionate
-    const recipes = await extractMentionedRecipes(conversationHistory);
+    let recipes = [];
+
+    // Se abbiamo discussedRecipes dal tracciamento RAG, usale direttamente
+    if (discussedRecipes && discussedRecipes.length > 0) {
+      console.log('Usando ricette tracciate dal RAG:', discussedRecipes);
+
+      // Recupera dettagli completi delle ricette per titolo
+      const { data: recipeData, error: recipeError } = await supabase
+        .from('ricette')
+        .select('titolo, famiglia, ricettario, anno, ingredienti, procedimento, scheda_antropologica, calorie, n_persone')
+        .in('titolo', discussedRecipes)
+        .order('titolo')
+        .order('anno');
+
+      if (!recipeError && recipeData) {
+        // Raggruppa per titolo e prendi solo la prima versione di ogni ricetta
+        const seenTitles = new Set();
+        for (const recipe of recipeData) {
+          if (!seenTitles.has(recipe.titolo)) {
+            seenTitles.add(recipe.titolo);
+            recipes.push(recipe);
+          }
+        }
+      }
+      console.log('Ricette recuperate:', recipes.map(r => r.titolo));
+    } else {
+      // Fallback: estrai ricette con text matching (legacy)
+      console.log('Fallback: estrazione ricette da conversazione');
+      recipes = await extractMentionedRecipes(conversationHistory);
+    }
 
     if (recipes.length === 0) {
       return res.status(200).json({

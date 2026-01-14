@@ -16,6 +16,7 @@ export function AzzurraAvatar({ onFinish }) {
     isProcessingMessage,
     error,
     conversationHistory,
+    discussedRecipes,
     connect,
     disconnect,
     attachVideo,
@@ -70,7 +71,7 @@ export function AzzurraAvatar({ onFinish }) {
   const handleDisconnect = async () => {
     await disconnect();
     if (onFinish) {
-      onFinish({ conversationHistory });
+      onFinish({ conversationHistory, discussedRecipes });
     }
   };
 

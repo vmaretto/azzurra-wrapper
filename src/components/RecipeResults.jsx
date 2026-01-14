@@ -5,7 +5,7 @@ import QRCode from 'qrcode';
  * RecipeResults mostra le ricette discusse durante la conversazione
  * con la possibilità di scaricare un PDF con i dettagli.
  */
-export default function RecipeResults({ conversationHistory }) {
+export default function RecipeResults({ conversationHistory, discussedRecipes }) {
   const [recipes, setRecipes] = useState([]);
   const [pdfBase64, setPdfBase64] = useState(null);
   const [pdfUrl, setPdfUrl] = useState(null);
@@ -24,7 +24,7 @@ export default function RecipeResults({ conversationHistory }) {
         const response = await fetch('/api/generate-recipe-pdf', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ conversationHistory })
+          body: JSON.stringify({ conversationHistory, discussedRecipes })
         });
 
         if (!response.ok) {
@@ -55,7 +55,7 @@ export default function RecipeResults({ conversationHistory }) {
     }
 
     fetchRecipes();
-  }, [conversationHistory]);
+  }, [conversationHistory, discussedRecipes]);
 
   // Funzione per scaricare il PDF
   const downloadPDF = () => {

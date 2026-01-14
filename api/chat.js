@@ -146,10 +146,14 @@ export default async function handler(req, res) {
 
     const reply = response.content[0].text;
 
+    // Estrai titoli unici delle ricette trovate dal RAG
+    const recipeTitles = [...new Set(relevantRecipes.map(r => r.titolo))];
+
     res.status(200).json({
       reply,
       usage: response.usage,
-      recipesFound: relevantRecipes.length
+      recipesFound: relevantRecipes.length,
+      recipeTitles
     });
 
   } catch (error) {

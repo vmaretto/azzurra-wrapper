@@ -17,6 +17,7 @@ export function useAzzurra() {
   const [error, setError] = useState(null);
   const [mediaElement, setMediaElement] = useState(null);
   const [conversationHistory, setConversationHistory] = useState([]);
+  const [discussedRecipes, setDiscussedRecipes] = useState([]);
 
   const sessionRef = useRef(null);
   const welcomeSentRef = useRef(false);
@@ -88,6 +89,16 @@ export function useAzzurra() {
     });
     const data = await response.json();
     if (data.error) throw new Error(data.error);
+
+    // Traccia le ricette discusse (titoli unici dal RAG)
+    if (data.recipeTitles && data.recipeTitles.length > 0) {
+      setDiscussedRecipes(prev => {
+        const newSet = new Set([...prev, ...data.recipeTitles]);
+        return [...newSet];
+      });
+      console.log('🍰 Ricette tracciate:', data.recipeTitles);
+    }
+
     return data.reply;
   };
 
@@ -467,6 +478,7 @@ export function useAzzurra() {
     error,
     mediaElement,
     conversationHistory,
+    discussedRecipes,
 
     // Actions
     connect,
