@@ -13,6 +13,7 @@ export function AzzurraAvatar({ onFinish }) {
     isTalking,
     isListening,
     isMuted,
+    isProcessingMessage,
     error,
     conversationHistory,
     connect,
@@ -109,6 +110,8 @@ export function AzzurraAvatar({ onFinish }) {
         <div className="status-indicator">
           {isTalking ? (
             <span className="status-talking">Azzurra sta parlando...</span>
+          ) : isProcessingMessage ? (
+            <span className="status-processing">Sto elaborando...</span>
           ) : isListening ? (
             <span className="status-listening">Ti sto ascoltando...</span>
           ) : (
