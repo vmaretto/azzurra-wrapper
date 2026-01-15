@@ -177,18 +177,23 @@ export function AzzurraChat({ onFinish }) {
             <div ref={messagesEndRef} />
           </div>
 
-          {/* Controlli fissi in basso */}
+          {/* Controlli fissi in basso - stile Image #10 */}
           <div className="chat-controls">
-            {/* Barra input - sfondo bianco come screenshot */}
+            {/* Textarea grande con pulsante invio dentro */}
             <form onSubmit={handleSendText} className="chat-input-wrapper">
-              <input
-                type="text"
+              <textarea
                 value={inputText}
                 onChange={(e) => setInputText(e.target.value)}
                 placeholder="Scrivi un messaggio..."
                 disabled={isProcessing || isTalking}
                 className="chat-text-input"
-                autoComplete="off"
+                rows={3}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSendText(e);
+                  }
+                }}
               />
               <button
                 type="submit"
@@ -200,7 +205,7 @@ export function AzzurraChat({ onFinish }) {
               </button>
             </form>
 
-            {/* Pulsanti azione */}
+            {/* Pulsanti azione sotto la textarea */}
             <div className="chat-action-buttons">
               {/* Pulsante Microfono */}
               <div className="chat-action-item">
@@ -216,20 +221,6 @@ export function AzzurraChat({ onFinish }) {
                   {isListening ? 'Stop' : 'Parla'}
                 </span>
               </div>
-
-              {/* Pulsante Stop Audio (solo se sta parlando) */}
-              {isTalking && (
-                <div className="chat-action-item">
-                  <button
-                    className="chat-circle-btn chat-stop-btn"
-                    onClick={stopAudio}
-                    aria-label="Ferma audio"
-                  >
-                    <MuteIcon />
-                  </button>
-                  <span className="chat-action-label">Muto</span>
-                </div>
-              )}
 
               {/* Pulsante Esci */}
               <div className="chat-action-item">
