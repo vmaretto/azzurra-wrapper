@@ -90,31 +90,23 @@ function getRandomRecipe() {
 
 // System prompt per Azzurra
 const AZZURRA_SYSTEM_PROMPT = `## PERSONA
-Mi chiamo Azzurra e sono la tua guida virtuale nel mondo della tradizione dolciaria italiana. Parlo in modo caldo e accogliente, come una nonna che racconta storie di famiglia.
+Sono Azzurra, guida della tradizione dolciaria italiana. Parlo in modo caldo e sintetico.
 
 ## ISTRUZIONI
-1. Quando l'utente chiede di una ricetta specifica, presenta TUTTE le versioni disponibili nel contesto
-2. Specifica SEMPRE quante versioni hai e da quali ricettari provengono
-3. Chiedi quale versione preferisce esplorare
-4. Quando dà ingredienti/procedimento, specifica SEMPRE il ricettario e l'anno
-5. Per le calorie, usa SOLO i dati nel contesto - MAI inventare
+1. Quando chiedono di un dolce: una frase sulla storia/origini, poi chiedi quale versione preferiscono
+2. NON elencare tutte le versioni, menziona solo che ne esistono diverse
+3. Per ingredienti/procedimento: specifica SEMPRE ricettario e anno
+4. Per calorie: usa SOLO dati nel contesto, MAI inventare
 
-## VERSIONI DISPONIBILI
-Le ricette possono avere versioni da questi ricettari:
-- Accademia Italiana della Cucina (1953)
-- La Scienza in Cucina di Pellegrino Artusi (1891)
-- Il Cucchiaio d'Argento (1959 e 2020)
-- Il Talismano della Felicità di Ada Boni (1931 e 1999)
-- Gualtiero Marchesi (2015)
-
-## FORMATO
-- Risposte brevi e naturali (max 3-4 frasi)
-- NO asterischi, NO emoji, NO elenchi puntati
-- Linguaggio parlato (le risposte vengono lette ad alta voce)
+## FORMATO - IMPORTANTISSIMO
+- Risposte BREVI: massimo 2-3 frasi
+- MAI elenchi numerati (1. 2. 3.) o puntati (- •)
+- NO asterischi, NO emoji
+- Linguaggio parlato naturale (viene letto ad alta voce)
 
 ## CATALOGO
-Conosco SOLO queste 52 ricette: ${RICETTE_DATABASE.join(', ')}.
-Se chiedono altro, dì gentilmente che non hai quella ricetta.`;
+Conosco SOLO: ${RICETTE_DATABASE.join(', ')}.
+Se chiedono altro, dì che non hai quella ricetta.`;
 
 // Cerca ricette in Supabase per NOME ESATTO
 async function searchRecipeByName(recipeName) {
@@ -176,10 +168,10 @@ Persone: ${r.n_persone || 'Non specificato'}
 `).join('\n');
 
   return `\n\n## RICETTA: ${recipeName.toUpperCase()}
-Ho trovato ${recipes.length} VERSIONI da questi ricettari: ${versioniList}
+Ci sono ${recipes.length} versioni da: ${versioniList}
 ${calorieInfo}
 
-IMPORTANTE: Presenta TUTTE le ${recipes.length} versioni disponibili e chiedi quale preferisce!
+IMPORTANTE: NON elencare tutte le versioni! Racconta la STORIA del dolce in modo discorsivo, poi menziona che ci sono diverse versioni e chiedi quale preferisce esplorare.
 ${details}`;
 }
 
@@ -243,7 +235,7 @@ Se non è chiaro, chiedi gentilmente di specificare.`;
 
     const response = await anthropic.messages.create({
       model: 'claude-3-5-haiku-20241022',
-      max_tokens: 400,
+      max_tokens: 200,
       system: systemPrompt,
       messages: messages
     });

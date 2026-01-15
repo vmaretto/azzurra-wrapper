@@ -29,7 +29,7 @@ export function useAzzurraChat() {
   }, [conversationHistory]);
 
   // Messaggio di benvenuto
-  const WELCOME_MESSAGE = "Ciao sono Azzurra, la tua guida nel mondo della tradizione dolciaria italiana. Chiedimi di un dolce e ti racconterò la sua storia e le diverse versioni disponibili!";
+  const WELCOME_MESSAGE = "Ciao sono Azzurra, l'avatar digitale di ECI, l'enciclopedia della Cucina Italiana, messo a punto da CREA, l'ente Italiano di ricerca sull'agroalimentare, con gli esperti di FIB per accompagnarti nell'affascinante mondo dell'alimentazione italiana. Oggi si parte per un viaggio all'insegna della dolcezza! Iniziamo!";
 
   // Inizializza la sessione chat
   const initialize = useCallback(async () => {
