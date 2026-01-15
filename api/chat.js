@@ -90,30 +90,84 @@ ${RICETTE_DATABASE.join(', ')}.
 - Rispondi SOLO con testo parlato diretto, senza didascalie o indicazioni sceniche
 - Inizia sempre direttamente con la risposta, senza preamboli come "*Con un sorriso*"`;
 
-// Cerca ricette simili in Supabase
-async function searchRecipes(query, limit = 5) {
+// Cerca ricette simili in Supabase (semantica + keyword fallback)
+async function searchRecipes(query, limit = 10) {
   if (!supabase || !openai) {
     return [];
   }
 
   try {
+    // 1. Ricerca semantica con embeddings
     const embeddingResponse = await openai.embeddings.create({
       model: 'text-embedding-3-small',
       input: query
     });
     const queryEmbedding = embeddingResponse.data[0].embedding;
 
-    const { data, error } = await supabase.rpc('search_ricette', {
+    const { data: semanticData, error: semanticError } = await supabase.rpc('search_ricette', {
       query_embedding: queryEmbedding,
       match_count: limit
     });
 
-    if (error) {
-      console.error('Errore ricerca Supabase:', error);
-      return [];
+    if (semanticError) {
+      console.error('Errore ricerca semantica Supabase:', semanticError);
     }
 
-    return data || [];
+    let results = semanticData || [];
+    console.log('🔍 Ricerca semantica trovate:', results.length, 'ricette');
+
+    // 2. Ricerca keyword fallback se semantica trova poco
+    if (results.length < 3) {
+      console.log('🔍 Avvio ricerca keyword fallback...');
+
+      // Normalizza query per matching
+      const queryLower = query.toLowerCase()
+        .replace(/[àáâã]/g, 'a')
+        .replace(/[èéêë]/g, 'e')
+        .replace(/[ìíîï]/g, 'i')
+        .replace(/[òóôõ]/g, 'o')
+        .replace(/[ùúûü]/g, 'u');
+
+      // Cerca match parziali nel catalogo
+      const matchingRecipes = RICETTE_DATABASE.filter(recipe => {
+        const recipeLower = recipe.toLowerCase()
+          .replace(/[àáâã]/g, 'a')
+          .replace(/[èéêë]/g, 'e')
+          .replace(/[ìíîï]/g, 'i')
+          .replace(/[òóôõ]/g, 'o')
+          .replace(/[ùúûü]/g, 'u');
+
+        // Match se la query contiene il nome ricetta o viceversa
+        return queryLower.includes(recipeLower) || recipeLower.includes(queryLower) ||
+               // Match parole chiave
+               recipeLower.split(' ').some(word => word.length > 3 && queryLower.includes(word)) ||
+               queryLower.split(' ').some(word => word.length > 3 && recipeLower.includes(word));
+      });
+
+      if (matchingRecipes.length > 0) {
+        console.log('🔍 Keyword match trovati:', matchingRecipes);
+
+        // Cerca queste ricette specifiche in Supabase per titolo
+        for (const recipeName of matchingRecipes) {
+          const { data: keywordData, error: keywordError } = await supabase
+            .from('ricette')
+            .select('*')
+            .ilike('titolo', `%${recipeName}%`)
+            .limit(5);
+
+          if (!keywordError && keywordData) {
+            // Aggiungi solo ricette non già presenti
+            const existingTitles = results.map(r => r.titolo);
+            const newRecipes = keywordData.filter(r => !existingTitles.includes(r.titolo));
+            results = [...results, ...newRecipes];
+            console.log('🔍 Aggiunte da keyword:', newRecipes.length, 'ricette');
+          }
+        }
+      }
+    }
+
+    console.log('🔍 Totale ricette trovate:', results.length);
+    return results;
   } catch (err) {
     console.error('Errore RAG:', err);
     return [];
