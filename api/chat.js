@@ -68,6 +68,22 @@ function isGenericRequest(message) {
   return genericPatterns.some(p => p.test(message));
 }
 
+// Rileva se è una domanda di follow-up che fa riferimento a ricette proposte precedentemente
+function isFollowUpQuestion(message) {
+  const followUpPatterns = [
+    /quello con/i, /quella con/i, /quelli con/i, /quelle con/i,
+    /il più/i, /la più/i, /il meno/i, /la meno/i,
+    /quale (ha|dei|delle|tra)/i, /quali (hanno|dei|delle|tra)/i,
+    /tra questi/i, /tra queste/i, /tra quelli/i, /tra quelle/i,
+    /dei tre/i, /delle tre/i, /il primo/i, /il secondo/i, /il terzo/i,
+    /la prima/i, /la seconda/i, /la terza/i,
+    /meno calorie/i, /più calorie/i, /più leggero/i, /più pesante/i,
+    /più facile/i, /più difficile/i, /più veloce/i, /più lungo/i,
+    /meno ingredienti/i, /più ingredienti/i
+  ];
+  return followUpPatterns.some(p => p.test(message));
+}
+
 // System prompt per Azzurra
 const AZZURRA_SYSTEM_PROMPT = `## PERSONA
 Mi chiamo Azzurra e sono la tua guida virtuale nel mondo della tradizione dolciaria italiana. Sono un'esperta di storia gastronomica, con una passione profonda per le ricette che hanno attraversato i secoli nelle cucine del nostro Paese. Parlo in modo caldo e accogliente, come una nonna che racconta storie di famiglia, ma con la precisione di chi ha studiato a fondo le origini e l'evoluzione dei nostri dolci tradizionali. Amo condividere curiosità storiche e aneddoti che rendono ogni ricetta un piccolo viaggio nel tempo. Sono sempre positiva e incoraggiante, pronta ad aiutarti a scegliere la versione perfetta di ogni dolce in base ai tuoi gusti e alle tue esigenze.
@@ -354,7 +370,7 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const { message, conversationHistory = [], discussedRecipes = [] } = req.body;
+  const { message, conversationHistory = [], discussedRecipes = [], proposedRecipes = [] } = req.body;
 
   if (!message) {
     return res.status(400).json({ error: 'Message is required' });
@@ -363,11 +379,18 @@ export default async function handler(req, res) {
   try {
     // Controlla se è una richiesta generica (suggerimento random)
     const isGeneric = isGenericRequest(message);
+    const isFollowUp = isFollowUpQuestion(message);
     let suggerimentiDinamici = '';
+    let suggestedRecipesForResponse = []; // Le ricette da tracciare nel frontend
+
+    console.log('📝 Messaggio:', message);
+    console.log('🔍 isGeneric:', isGeneric, '| isFollowUp:', isFollowUp);
+    console.log('📋 proposedRecipes ricevute:', proposedRecipes);
 
     if (isGeneric) {
       // Genera 3 suggerimenti random escludendo le ricette già discusse
       const suggestions = getRandomSuggestions(discussedRecipes, 3);
+      suggestedRecipesForResponse = suggestions; // Traccia questi per il frontend
       console.log('🎲 Richiesta generica rilevata! Suggerimenti random:', suggestions);
       console.log('📋 Ricette già discusse (escluse):', discussedRecipes);
 
@@ -383,8 +406,44 @@ IMPORTANTE: Usa ESATTAMENTE questi tre suggerimenti nella tua risposta, non altr
 Presenta questi dolci in modo naturale e invitante, chiedendo quale interessa all'utente.`;
     }
 
-    // Cerca ricette rilevanti (RAG)
-    const relevantRecipes = await searchRecipes(message);
+    // Determina cosa cercare nel RAG
+    let searchQuery = message;
+    let relevantRecipes = [];
+
+    // Se è una domanda follow-up E abbiamo ricette proposte, cerca quelle specifiche
+    if (isFollowUp && proposedRecipes.length > 0) {
+      console.log('🔄 Follow-up rilevato! Cerco le ricette proposte:', proposedRecipes);
+
+      // Cerca tutte le ricette proposte nel database
+      for (const recipeName of proposedRecipes) {
+        const recipes = await searchRecipes(recipeName, 5);
+        relevantRecipes = [...relevantRecipes, ...recipes];
+      }
+
+      // Rimuovi duplicati
+      const seen = new Set();
+      relevantRecipes = relevantRecipes.filter(r => {
+        const key = `${r.titolo}-${r.ricettario}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+
+      console.log('🔄 Ricette trovate per follow-up:', relevantRecipes.length);
+
+      // Aggiungi contesto speciale per la domanda follow-up
+      suggerimentiDinamici += `
+
+## CONTESTO DOMANDA DI FOLLOW-UP
+L'utente sta chiedendo un CONFRONTO tra queste ricette che gli avevi proposto: ${proposedRecipes.join(', ')}.
+La domanda "${message}" si riferisce a QUESTE ricette specifiche.
+RISPONDI confrontando SOLO queste ricette, usando i dati nel contesto.
+Se chiede calorie, confronta le calorie di queste ricette specifiche.`;
+    } else {
+      // Ricerca RAG normale
+      relevantRecipes = await searchRecipes(message);
+    }
+
     const recipesContext = formatRecipesContext(relevantRecipes);
 
     // Costruisci system prompt con contesto ricette E suggerimenti dinamici
@@ -445,6 +504,7 @@ Presenta questi dolci in modo naturale e invitante, chiedendo quale interessa al
       usage: response.usage,
       recipesFound: relevantRecipes.length,
       recipeTitles,
+      suggestedRecipes: suggestedRecipesForResponse, // Nuove proposte da tracciare
       validated: true,
       calorieValidated: calorieValidation.valid
     });

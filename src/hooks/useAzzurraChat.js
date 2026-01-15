@@ -13,6 +13,7 @@ export function useAzzurraChat() {
   const [error, setError] = useState(null);
   const [conversationHistory, setConversationHistory] = useState([]);
   const [discussedRecipes, setDiscussedRecipes] = useState([]);
+  const [proposedRecipes, setProposedRecipes] = useState([]); // Ricette proposte da Azzurra (per follow-up)
   const [currentMessage, setCurrentMessage] = useState('');
 
   // Refs
@@ -25,6 +26,7 @@ export function useAzzurraChat() {
   // REF per mantenere la history sempre aggiornata (evita stale closures)
   const conversationHistoryRef = useRef(conversationHistory);
   const discussedRecipesRef = useRef(discussedRecipes);
+  const proposedRecipesRef = useRef(proposedRecipes);
 
   // Sincronizza i ref ogni volta che gli stati cambiano
   useEffect(() => {
@@ -34,6 +36,10 @@ export function useAzzurraChat() {
   useEffect(() => {
     discussedRecipesRef.current = discussedRecipes;
   }, [discussedRecipes]);
+
+  useEffect(() => {
+    proposedRecipesRef.current = proposedRecipes;
+  }, [proposedRecipes]);
 
   // Messaggio di benvenuto
   const WELCOME_MESSAGE = "Ciao sono Azzurra, l'avatar digitale di ECI, l'enciclopedia della Cucina Italiana, messo a punto da CREA, l'ente Italiano di ricerca sull'agroalimentare, con gli esperti di FIB per accompagnarti nell'affascinante mondo dell'alimentazione italiana. Oggi si parte per un viaggio all'insegna della dolcezza! Iniziamo!";
@@ -264,16 +270,18 @@ export function useAzzurraChat() {
 
     console.log('Sending message with history length:', updatedHistory.length);
     console.log('📋 discussedRecipes inviato al backend:', discussedRecipesRef.current);
+    console.log('🎯 proposedRecipes inviato al backend:', proposedRecipesRef.current);
 
     try {
-      // Chiama endpoint chat con la history AGGIORNATA e le ricette già discusse
+      // Chiama endpoint chat con la history AGGIORNATA, ricette discusse e proposte
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           message: text,
           conversationHistory: updatedHistory,
-          discussedRecipes: discussedRecipesRef.current  // Passa le ricette già discusse
+          discussedRecipes: discussedRecipesRef.current,  // Ricette già discusse (per esclusione)
+          proposedRecipes: proposedRecipesRef.current     // Ricette proposte (per follow-up)
         })
       });
 
@@ -284,7 +292,7 @@ export function useAzzurraChat() {
       const data = await response.json();
       const reply = data.reply;
 
-      // Traccia ricette discusse
+      // Traccia ricette discusse (dal RAG)
       if (data.recipeTitles && data.recipeTitles.length > 0) {
         console.log('🍰 Ricette trovate dal RAG:', data.recipeTitles);
         setDiscussedRecipes(prev => {
@@ -295,6 +303,13 @@ export function useAzzurraChat() {
         });
       } else {
         console.log('⚠️ Nessuna ricetta trovata dal RAG per questo messaggio');
+      }
+
+      // Traccia nuove proposte (suggerimenti random generati dal backend)
+      if (data.suggestedRecipes && data.suggestedRecipes.length > 0) {
+        console.log('🎲 Nuove proposte ricevute dal backend:', data.suggestedRecipes);
+        setProposedRecipes(data.suggestedRecipes);
+        proposedRecipesRef.current = data.suggestedRecipes;
       }
 
       setIsProcessing(false);

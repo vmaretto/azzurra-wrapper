@@ -18,6 +18,7 @@ export function useAzzurra() {
   const [mediaElement, setMediaElement] = useState(null);
   const [conversationHistory, setConversationHistory] = useState([]);
   const [discussedRecipes, setDiscussedRecipes] = useState([]);
+  const [proposedRecipes, setProposedRecipes] = useState([]); // Ricette proposte per follow-up
 
   const sessionRef = useRef(null);
   const welcomeSentRef = useRef(false);
@@ -75,11 +76,15 @@ export function useAzzurra() {
     return data.sessionToken;
   };
 
-  // Ref per discussedRecipes (per evitare stale closures)
+  // Ref per discussedRecipes e proposedRecipes (per evitare stale closures)
   const discussedRecipesRef = useRef([]);
+  const proposedRecipesRef = useRef([]);
   useEffect(() => {
     discussedRecipesRef.current = discussedRecipes;
   }, [discussedRecipes]);
+  useEffect(() => {
+    proposedRecipesRef.current = proposedRecipes;
+  }, [proposedRecipes]);
 
   // Invia messaggio a Claude e ricevi risposta
   const getChatResponse = async (message, isFollowUp = false) => {
@@ -88,13 +93,17 @@ export function useAzzurra() {
       ? `[L'utente ha aggiunto questa domanda mentre stavi rispondendo alla precedente] ${message}`
       : message;
 
+    console.log('📋 discussedRecipes inviato:', discussedRecipesRef.current);
+    console.log('🎯 proposedRecipes inviato:', proposedRecipesRef.current);
+
     const response = await fetch('/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         message: messageToSend,
         conversationHistory: conversationHistoryRef.current,
-        discussedRecipes: discussedRecipesRef.current  // Passa le ricette già discusse
+        discussedRecipes: discussedRecipesRef.current,  // Ricette già discusse (per esclusione)
+        proposedRecipes: proposedRecipesRef.current      // Ricette proposte (per follow-up)
       })
     });
     const data = await response.json();
@@ -107,6 +116,13 @@ export function useAzzurra() {
         return [...newSet];
       });
       console.log('🍰 Ricette tracciate:', data.recipeTitles);
+    }
+
+    // Traccia nuove proposte (suggerimenti random dal backend)
+    if (data.suggestedRecipes && data.suggestedRecipes.length > 0) {
+      console.log('🎲 Nuove proposte ricevute:', data.suggestedRecipes);
+      setProposedRecipes(data.suggestedRecipes);
+      proposedRecipesRef.current = data.suggestedRecipes;
     }
 
     return data.reply;
