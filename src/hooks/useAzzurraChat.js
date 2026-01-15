@@ -24,11 +24,16 @@ export function useAzzurraChat() {
 
   // REF per mantenere la history sempre aggiornata (evita stale closures)
   const conversationHistoryRef = useRef(conversationHistory);
+  const discussedRecipesRef = useRef(discussedRecipes);
 
-  // Sincronizza il ref ogni volta che lo stato cambia
+  // Sincronizza i ref ogni volta che gli stati cambiano
   useEffect(() => {
     conversationHistoryRef.current = conversationHistory;
   }, [conversationHistory]);
+
+  useEffect(() => {
+    discussedRecipesRef.current = discussedRecipes;
+  }, [discussedRecipes]);
 
   // Messaggio di benvenuto
   const WELCOME_MESSAGE = "Ciao sono Azzurra, l'avatar digitale di ECI, l'enciclopedia della Cucina Italiana, messo a punto da CREA, l'ente Italiano di ricerca sull'agroalimentare, con gli esperti di FIB per accompagnarti nell'affascinante mondo dell'alimentazione italiana. Oggi si parte per un viaggio all'insegna della dolcezza! Iniziamo!";
@@ -260,13 +265,14 @@ export function useAzzurraChat() {
     console.log('Sending message with history length:', updatedHistory.length);
 
     try {
-      // Chiama endpoint chat con la history AGGIORNATA
+      // Chiama endpoint chat con la history AGGIORNATA e le ricette già discusse
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           message: text,
-          conversationHistory: updatedHistory
+          conversationHistory: updatedHistory,
+          discussedRecipes: discussedRecipesRef.current  // Passa le ricette già discusse
         })
       });
 

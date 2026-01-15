@@ -75,6 +75,12 @@ export function useAzzurra() {
     return data.sessionToken;
   };
 
+  // Ref per discussedRecipes (per evitare stale closures)
+  const discussedRecipesRef = useRef([]);
+  useEffect(() => {
+    discussedRecipesRef.current = discussedRecipes;
+  }, [discussedRecipes]);
+
   // Invia messaggio a Claude e ricevi risposta
   const getChatResponse = async (message, isFollowUp = false) => {
     // Se è un messaggio di follow-up (coda), aggiungi contesto
@@ -85,7 +91,11 @@ export function useAzzurra() {
     const response = await fetch('/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message: messageToSend, conversationHistory: conversationHistoryRef.current })
+      body: JSON.stringify({
+        message: messageToSend,
+        conversationHistory: conversationHistoryRef.current,
+        discussedRecipes: discussedRecipesRef.current  // Passa le ricette già discusse
+      })
     });
     const data = await response.json();
     if (data.error) throw new Error(data.error);
