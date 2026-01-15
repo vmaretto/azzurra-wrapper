@@ -36,6 +36,12 @@ const SendIcon = () => (
   </svg>
 );
 
+const UserIcon = () => (
+  <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+    <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
+  </svg>
+);
+
 export function AzzurraChat({ onFinish }) {
   const [inputText, setInputText] = useState('');
   const messagesEndRef = useRef(null);
@@ -160,6 +166,15 @@ export function AzzurraChat({ onFinish }) {
                 key={index}
                 className={`chat-message ${msg.role === 'user' ? 'user' : 'assistant'}`}
               >
+                <div className="message-avatar">
+                  {msg.role === 'assistant' ? (
+                    <img src="/logo-azzurra.png" alt="Azzurra" />
+                  ) : (
+                    <div className="user-avatar-icon">
+                      <UserIcon />
+                    </div>
+                  )}
+                </div>
                 <div className="message-bubble">
                   {msg.content}
                 </div>
@@ -168,6 +183,9 @@ export function AzzurraChat({ onFinish }) {
             {/* Messaggio corrente in riproduzione */}
             {isTalking && currentMessage && (
               <div className="chat-message assistant">
+                <div className="message-avatar">
+                  <img src="/logo-azzurra.png" alt="Azzurra" />
+                </div>
                 <div className="message-bubble">
                   {currentMessage}
                   <span className="speaking-indicator">...</span>
