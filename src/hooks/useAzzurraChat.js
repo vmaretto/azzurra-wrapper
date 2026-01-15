@@ -263,6 +263,7 @@ export function useAzzurraChat() {
     conversationHistoryRef.current = updatedHistory;
 
     console.log('Sending message with history length:', updatedHistory.length);
+    console.log('📋 discussedRecipes inviato al backend:', discussedRecipesRef.current);
 
     try {
       // Chiama endpoint chat con la history AGGIORNATA e le ricette già discusse
@@ -285,10 +286,15 @@ export function useAzzurraChat() {
 
       // Traccia ricette discusse
       if (data.recipeTitles && data.recipeTitles.length > 0) {
+        console.log('🍰 Ricette trovate dal RAG:', data.recipeTitles);
         setDiscussedRecipes(prev => {
           const newSet = new Set([...prev, ...data.recipeTitles]);
-          return [...newSet];
+          const updated = [...newSet];
+          console.log('🍰 discussedRecipes aggiornato:', updated);
+          return updated;
         });
+      } else {
+        console.log('⚠️ Nessuna ricetta trovata dal RAG per questo messaggio');
       }
 
       setIsProcessing(false);
