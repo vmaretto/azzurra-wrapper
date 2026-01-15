@@ -68,8 +68,8 @@ function isGenericRequest(message) {
   return genericPatterns.some(p => p.test(message));
 }
 
-// Rileva se il messaggio menziona esplicitamente una ricetta del catalogo
-function mentionsSpecificRecipe(message) {
+// Rileva quale ricetta del catalogo viene menzionata nel messaggio (se presente)
+function getMentionedRecipe(message) {
   const msgLower = message.toLowerCase()
     .replace(/[àáâã]/g, 'a')
     .replace(/[èéêë]/g, 'e')
@@ -77,7 +77,7 @@ function mentionsSpecificRecipe(message) {
     .replace(/[òóôõ]/g, 'o')
     .replace(/[ùúûü]/g, 'u');
 
-  return RICETTE_DATABASE.some(recipe => {
+  for (const recipe of RICETTE_DATABASE) {
     const recipeLower = recipe.toLowerCase()
       .replace(/[àáâã]/g, 'a')
       .replace(/[èéêë]/g, 'e')
@@ -86,15 +86,41 @@ function mentionsSpecificRecipe(message) {
       .replace(/[ùúûü]/g, 'u');
 
     // Match se il messaggio contiene il nome della ricetta o parole chiave significative
-    return msgLower.includes(recipeLower) ||
-           recipeLower.split(' ').some(word => word.length > 4 && msgLower.includes(word));
+    if (msgLower.includes(recipeLower) ||
+        recipeLower.split(' ').some(word => word.length > 4 && msgLower.includes(word))) {
+      return recipe; // Ritorna il nome della ricetta trovata
+    }
+  }
+  return null; // Nessuna ricetta menzionata
+}
+
+// Controlla se una ricetta è tra quelle proposte
+function isRecipeInProposed(recipeName, proposedRecipes) {
+  if (!recipeName || !proposedRecipes || proposedRecipes.length === 0) return false;
+
+  const recipeNorm = recipeName.toLowerCase()
+    .replace(/[àáâã]/g, 'a')
+    .replace(/[èéêë]/g, 'e')
+    .replace(/[ìíîï]/g, 'i')
+    .replace(/[òóôõ]/g, 'o')
+    .replace(/[ùúûü]/g, 'u');
+
+  return proposedRecipes.some(proposed => {
+    const proposedNorm = proposed.toLowerCase()
+      .replace(/[àáâã]/g, 'a')
+      .replace(/[èéêë]/g, 'e')
+      .replace(/[ìíîï]/g, 'i')
+      .replace(/[òóôõ]/g, 'o')
+      .replace(/[ùúûü]/g, 'u');
+
+    return recipeNorm.includes(proposedNorm) || proposedNorm.includes(recipeNorm);
   });
 }
 
-// Rileva se è una domanda di follow-up:
+// Rileva se è una domanda di follow-up sulle ricette proposte:
 // - Ci sono ricette proposte attive
 // - Il messaggio NON è una richiesta generica (nuovo suggerimento)
-// - Il messaggio NON menziona esplicitamente un'altra ricetta
+// - Se menziona una ricetta, questa DEVE essere tra quelle proposte (altrimenti sta chiedendo qualcosa di nuovo)
 function isFollowUpQuestion(message, proposedRecipes) {
   // Se non ci sono proposte attive, non può essere un follow-up
   if (!proposedRecipes || proposedRecipes.length === 0) {
@@ -106,13 +132,18 @@ function isFollowUpQuestion(message, proposedRecipes) {
     return false;
   }
 
-  // Se menziona esplicitamente una ricetta specifica, sta chiedendo quella (non è follow-up)
-  if (mentionsSpecificRecipe(message)) {
-    return false;
+  // Controlla se menziona una ricetta specifica
+  const mentionedRecipe = getMentionedRecipe(message);
+
+  if (mentionedRecipe) {
+    // Se menziona una ricetta, verifica se è tra quelle proposte
+    // Se SÌ -> è un follow-up su quella ricetta
+    // Se NO -> sta chiedendo una ricetta nuova (non è follow-up)
+    return isRecipeInProposed(mentionedRecipe, proposedRecipes);
   }
 
-  // Altrimenti, con proposte attive, è probabilmente un follow-up
-  // (sta chiedendo qualcosa sulle ricette proposte)
+  // Se non menziona nessuna ricetta specifica ma ci sono proposte attive,
+  // è probabilmente un follow-up (es. "quello con meno calorie")
   return true;
 }
 
@@ -416,9 +447,14 @@ export default async function handler(req, res) {
     let suggerimentiDinamici = '';
     let suggestedRecipesForResponse = []; // Le ricette da tracciare nel frontend
 
+    const mentionedRecipe = getMentionedRecipe(message);
     console.log('📝 Messaggio:', message);
     console.log('🔍 isGeneric:', isGeneric, '| isFollowUp:', isFollowUp);
+    console.log('🍰 Ricetta menzionata:', mentionedRecipe || 'nessuna');
     console.log('📋 proposedRecipes ricevute:', proposedRecipes);
+    if (mentionedRecipe && proposedRecipes.length > 0) {
+      console.log('🔗 Ricetta in proposte?', isRecipeInProposed(mentionedRecipe, proposedRecipes));
+    }
 
     if (isGeneric) {
       // Genera 3 suggerimenti random escludendo le ricette già discusse
@@ -444,33 +480,54 @@ Presenta questi dolci in modo naturale e invitante, chiedendo quale interessa al
 
     // Se è una domanda follow-up E abbiamo ricette proposte, cerca quelle specifiche
     if (isFollowUp && proposedRecipes.length > 0) {
-      console.log('🔄 Follow-up rilevato! Cerco le ricette proposte:', proposedRecipes);
+      // Controlla se menziona UNA ricetta specifica delle proposte
+      if (mentionedRecipe && isRecipeInProposed(mentionedRecipe, proposedRecipes)) {
+        // Chiede dettagli su UNA SOLA ricetta specifica
+        console.log('🔄 Follow-up su ricetta SPECIFICA:', mentionedRecipe);
+        relevantRecipes = await searchRecipes(mentionedRecipe, 10);
+        console.log('🔄 Ricette trovate per', mentionedRecipe, ':', relevantRecipes.length);
 
-      // Cerca tutte le ricette proposte nel database
-      for (const recipeName of proposedRecipes) {
-        const recipes = await searchRecipes(recipeName, 5);
-        relevantRecipes = [...relevantRecipes, ...recipes];
-      }
+        // Aggiorna le proposte per contenere solo questa ricetta (per follow-up successivi)
+        suggestedRecipesForResponse = [mentionedRecipe];
 
-      // Rimuovi duplicati
-      const seen = new Set();
-      relevantRecipes = relevantRecipes.filter(r => {
-        const key = `${r.titolo}-${r.ricettario}`;
-        if (seen.has(key)) return false;
-        seen.add(key);
-        return true;
-      });
+        // Aggiungi contesto speciale per la ricetta specifica
+        suggerimentiDinamici += `
 
-      console.log('🔄 Ricette trovate per follow-up:', relevantRecipes.length);
+## CONTESTO DOMANDA SPECIFICA
+L'utente sta chiedendo informazioni sulla ricetta "${mentionedRecipe}" che gli avevi proposto.
+La domanda "${message}" si riferisce a QUESTA ricetta specifica.
+RISPONDI parlando SOLO di "${mentionedRecipe}", usando TUTTE le versioni disponibili nel contesto.
+Se chiede confronti (es. versione con meno calorie), confronta le DIVERSE VERSIONI di questa stessa ricetta.`;
+      } else {
+        // Chiede confronto tra TUTTE le ricette proposte
+        console.log('🔄 Follow-up CONFRONTO tra proposte:', proposedRecipes);
 
-      // Aggiungi contesto speciale per la domanda follow-up
-      suggerimentiDinamici += `
+        // Cerca tutte le ricette proposte nel database
+        for (const recipeName of proposedRecipes) {
+          const recipes = await searchRecipes(recipeName, 5);
+          relevantRecipes = [...relevantRecipes, ...recipes];
+        }
+
+        // Rimuovi duplicati
+        const seen = new Set();
+        relevantRecipes = relevantRecipes.filter(r => {
+          const key = `${r.titolo}-${r.ricettario}`;
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        });
+
+        console.log('🔄 Ricette trovate per follow-up:', relevantRecipes.length);
+
+        // Aggiungi contesto speciale per la domanda follow-up
+        suggerimentiDinamici += `
 
 ## CONTESTO DOMANDA DI FOLLOW-UP
 L'utente sta chiedendo un CONFRONTO tra queste ricette che gli avevi proposto: ${proposedRecipes.join(', ')}.
 La domanda "${message}" si riferisce a QUESTE ricette specifiche.
 RISPONDI confrontando SOLO queste ricette, usando i dati nel contesto.
 Se chiede calorie, confronta le calorie di queste ricette specifiche.`;
+      }
     } else if (isGeneric) {
       // Per richieste generiche, cerca i suggerimenti generati (non il messaggio utente)
       console.log('🎲 Richiesta generica - cerco i suggerimenti nel RAG:', suggestedRecipesForResponse);
@@ -482,6 +539,12 @@ Se chiede calorie, confronta le calorie di queste ricette specifiche.`;
     } else {
       // Ricerca RAG normale
       relevantRecipes = await searchRecipes(message);
+
+      // Se l'utente chiede di una ricetta specifica, traccila per i follow-up successivi
+      if (mentionedRecipe) {
+        console.log('📌 Ricetta specifica menzionata - tracciata per follow-up:', mentionedRecipe);
+        suggestedRecipesForResponse = [mentionedRecipe];
+      }
     }
 
     const recipesContext = formatRecipesContext(relevantRecipes);
@@ -526,8 +589,8 @@ Se chiede calorie, confronta le calorie di queste ricette specifiche.`;
     const mentionsGenericRecipe = /ricetta|ingredienti|procedimento|preparazione|dose|porzioni/i.test(reply);
     const mentionsSpecificDish = /tiramis|torta|biscott|cantucc|panna cotta|profiterol|zabaione|crostata|panettone|pandoro|colomba|cannoli|cassata|sfogliatell|babà|zeppol|strufoli|panforte|ricciarell|cavallucc|brigidini|amaretti|savoiardi|meringh|bignè|frittell|castagnol|chiacchier|cenci|frappe|bugie|galani|ciambelle|bomboloni|mousse|budino|crema|gelato|granita|sorbetto|semifreddo|pizza|calzone|piadina|bruschetta|panzerott|focaccia|pane/i;
 
-    // Salta validazione "ricetta inventata" per richieste generiche (i suggerimenti sono sempre validi)
-    if (!isGeneric && relevantRecipes.length === 0 && mentionsSpecificDish.test(reply) && mentionsGenericRecipe) {
+    // Salta validazione "ricetta inventata" per richieste generiche o follow-up (sono sempre validi)
+    if (!isGeneric && !isFollowUp && relevantRecipes.length === 0 && mentionsSpecificDish.test(reply) && mentionsGenericRecipe) {
       // Claude potrebbe aver inventato - forza risposta sicura
       console.warn('⚠️ ATTENZIONE: Claude potrebbe aver inventato una ricetta!');
       reply = "Mi dispiace, non ho informazioni specifiche su questa ricetta nel mio archivio. Posso aiutarti con tanti dolci della tradizione italiana come il tiramisù, i cannoli, la pastiera napoletana o il panettone. Cosa ti piacerebbe scoprire?";
