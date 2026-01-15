@@ -266,14 +266,15 @@ export function useAzzurraChat() {
         });
       }
 
-      // Aggiungi risposta alla history
-      const assistantMessage = { role: 'assistant', content: reply };
-      setConversationHistory(prev => [...prev, assistantMessage]);
-
       setIsProcessing(false);
 
-      // Pronuncia la risposta
+      // Pronuncia la risposta (currentMessage sarà visibile durante il parlato)
       await speakText(reply);
+
+      // Aggiungi risposta alla history DOPO aver finito di parlare
+      // Così evitiamo duplicazione visiva
+      const assistantMessage = { role: 'assistant', content: reply };
+      setConversationHistory(prev => [...prev, assistantMessage]);
 
     } catch (err) {
       console.error('Chat error:', err);
