@@ -17,8 +17,7 @@ export function useAzzurra() {
   const [error, setError] = useState(null);
   const [mediaElement, setMediaElement] = useState(null);
   const [conversationHistory, setConversationHistory] = useState([]);
-  const [discussedRecipes, setDiscussedRecipes] = useState([]);
-  const [proposedRecipes, setProposedRecipes] = useState([]); // Ricette proposte per follow-up
+  const [discussedRecipes, setDiscussedRecipes] = useState([]); // Per PDF/QR finale
 
   const sessionRef = useRef(null);
   const welcomeSentRef = useRef(false);
@@ -30,7 +29,6 @@ export function useAzzurra() {
   const fallbackTimeoutRef = useRef(null);
   const processDelayRef = useRef(null);
   const lastProcessedRef = useRef(''); // Per evitare doppie risposte
-  const isFollowUpRef = useRef(false); // Per messaggi in coda
 
   // Messaggio di benvenuto
   const WELCOME_MESSAGE = "Ciao sono Azzurra, l'avatar digitale di ECI, l'enciclopedia della Cucina Italiana, messo a punto da CREA, l'ente Italiano di ricerca sull'agroalimentare, con gli esperti di FIB per accompagnarti nell'affascinante mondo dell'alimentazione italiana. Oggi si parte per un viaggio all'insegna della dolcezza! Iniziamo!";
@@ -76,53 +74,28 @@ export function useAzzurra() {
     return data.sessionToken;
   };
 
-  // Ref per discussedRecipes e proposedRecipes (per evitare stale closures)
-  const discussedRecipesRef = useRef([]);
-  const proposedRecipesRef = useRef([]);
-  useEffect(() => {
-    discussedRecipesRef.current = discussedRecipes;
-  }, [discussedRecipes]);
-  useEffect(() => {
-    proposedRecipesRef.current = proposedRecipes;
-  }, [proposedRecipes]);
-
-  // Invia messaggio a Claude e ricevi risposta
-  const getChatResponse = async (message, isFollowUp = false) => {
-    // Se è un messaggio di follow-up (coda), aggiungi contesto
-    const messageToSend = isFollowUp
-      ? `[L'utente ha aggiunto questa domanda mentre stavi rispondendo alla precedente] ${message}`
-      : message;
-
-    console.log('📋 discussedRecipes inviato:', discussedRecipesRef.current);
-    console.log('🎯 proposedRecipes inviato:', proposedRecipesRef.current);
+  // Invia messaggio a Claude e ricevi risposta (semplificato)
+  const getChatResponse = async (message) => {
+    console.log('📤 Invio messaggio:', message);
 
     const response = await fetch('/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        message: messageToSend,
-        conversationHistory: conversationHistoryRef.current,
-        discussedRecipes: discussedRecipesRef.current,  // Ricette già discusse (per esclusione)
-        proposedRecipes: proposedRecipesRef.current      // Ricette proposte (per follow-up)
+        message,
+        conversationHistory: conversationHistoryRef.current
       })
     });
     const data = await response.json();
     if (data.error) throw new Error(data.error);
 
-    // Traccia le ricette discusse (titoli unici dal RAG)
+    // Traccia ricette discusse per PDF/QR finale
     if (data.recipeTitles && data.recipeTitles.length > 0) {
       setDiscussedRecipes(prev => {
         const newSet = new Set([...prev, ...data.recipeTitles]);
         return [...newSet];
       });
       console.log('🍰 Ricette tracciate:', data.recipeTitles);
-    }
-
-    // Traccia nuove proposte (suggerimenti random dal backend)
-    if (data.suggestedRecipes && data.suggestedRecipes.length > 0) {
-      console.log('🎲 Nuove proposte ricevute:', data.suggestedRecipes);
-      setProposedRecipes(data.suggestedRecipes);
-      proposedRecipesRef.current = data.suggestedRecipes;
     }
 
     return data.reply;
@@ -192,10 +165,9 @@ export function useAzzurra() {
         isTalkingRef.current = false;
         setIsTalking(false);
 
-        // Se c'è qualcosa nel buffer, è un messaggio di follow-up (utente ha parlato durante risposta)
+        // Se c'è qualcosa nel buffer, processa dopo che avatar ha finito
         if (transcriptionBufferRef.current.length > 3) {
-          console.log('📝 Buffer da processare dopo avatar (follow-up):', transcriptionBufferRef.current);
-          isFollowUpRef.current = true; // Marca come messaggio di coda
+          console.log('📝 Buffer da processare dopo avatar:', transcriptionBufferRef.current);
           if (processDelayRef.current) {
             clearTimeout(processDelayRef.current);
           }
@@ -230,10 +202,6 @@ export function useAzzurra() {
         const message = transcriptionBufferRef.current.trim();
         transcriptionBufferRef.current = '';
 
-        // Cattura se è un follow-up e resetta
-        const isFollowUp = isFollowUpRef.current;
-        isFollowUpRef.current = false;
-
         if (!message || message.length < 3) {
           console.log('⏭️ Buffer vuoto o troppo corto, skip');
           return;
@@ -249,7 +217,6 @@ export function useAzzurra() {
         if (isTalkingRef.current) {
           console.log('⏳ Avatar sta parlando, rimetto in buffer e attendo...');
           transcriptionBufferRef.current = message;
-          isFollowUpRef.current = isFollowUp; // Mantieni flag
           setTimeout(() => processBuffer(), 1000);
           return;
         }
@@ -258,7 +225,6 @@ export function useAzzurra() {
         if (isProcessingRef.current) {
           console.log('⏳ Processing in corso, rimetto in buffer e attendo...');
           transcriptionBufferRef.current = message;
-          isFollowUpRef.current = isFollowUp; // Mantieni flag
           setTimeout(() => processBuffer(), 1000);
           return;
         }
@@ -270,17 +236,14 @@ export function useAzzurra() {
 
         console.log('═══════════════════════════════════════');
         console.log('📥 DOMANDA COMPLETA:', message);
-        if (isFollowUp) {
-          console.log('📌 (Messaggio di follow-up/coda)');
-        }
         console.log('═══════════════════════════════════════');
 
         // Aggiorna history
         setConversationHistory(prev => [...prev, { role: 'user', content: message }]);
 
         try {
-          // Ottieni risposta da Claude (passa flag isFollowUp)
-          const reply = await getChatResponse(message, isFollowUp);
+          // Ottieni risposta da Claude
+          const reply = await getChatResponse(message);
 
           console.log('═══════════════════════════════════════');
           console.log('📤 RISPOSTA COMPLETA:', reply);

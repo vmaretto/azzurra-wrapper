@@ -1,5 +1,5 @@
 // src/hooks/useAzzurraChat.js
-// Hook per gestire la chat vocale/testuale senza HeyGen
+// Hook SEMPLIFICATO per gestire la chat vocale/testuale senza HeyGen
 
 import { useState, useRef, useCallback, useEffect } from 'react';
 
@@ -12,8 +12,7 @@ export function useAzzurraChat() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState(null);
   const [conversationHistory, setConversationHistory] = useState([]);
-  const [discussedRecipes, setDiscussedRecipes] = useState([]);
-  const [proposedRecipes, setProposedRecipes] = useState([]); // Ricette proposte da Azzurra (per follow-up)
+  const [discussedRecipes, setDiscussedRecipes] = useState([]); // Per PDF/QR finale
   const [currentMessage, setCurrentMessage] = useState('');
 
   // Refs
@@ -22,27 +21,15 @@ export function useAzzurraChat() {
   const audioContextRef = useRef(null);
   const currentAudioRef = useRef(null);
   const streamRef = useRef(null);
+  const conversationHistoryRef = useRef([]);
 
-  // REF per mantenere la history sempre aggiornata (evita stale closures)
-  const conversationHistoryRef = useRef(conversationHistory);
-  const discussedRecipesRef = useRef(discussedRecipes);
-  const proposedRecipesRef = useRef(proposedRecipes);
-
-  // Sincronizza i ref ogni volta che gli stati cambiano
+  // Sincronizza ref con stato
   useEffect(() => {
     conversationHistoryRef.current = conversationHistory;
   }, [conversationHistory]);
 
-  useEffect(() => {
-    discussedRecipesRef.current = discussedRecipes;
-  }, [discussedRecipes]);
-
-  useEffect(() => {
-    proposedRecipesRef.current = proposedRecipes;
-  }, [proposedRecipes]);
-
   // Messaggio di benvenuto
-  const WELCOME_MESSAGE = "Ciao sono Azzurra, l'avatar digitale di ECI, l'enciclopedia della Cucina Italiana, messo a punto da CREA, l'ente Italiano di ricerca sull'agroalimentare, con gli esperti di FIB per accompagnarti nell'affascinante mondo dell'alimentazione italiana. Oggi si parte per un viaggio all'insegna della dolcezza! Iniziamo!";
+  const WELCOME_MESSAGE = "Ciao sono Azzurra, la tua guida nel mondo della tradizione dolciaria italiana. Chiedimi di un dolce e ti racconterò la sua storia e le diverse versioni disponibili!";
 
   // Inizializza la sessione chat
   const initialize = useCallback(async () => {
@@ -63,7 +50,7 @@ export function useAzzurraChat() {
       // Pronuncia messaggio di benvenuto
       await speakText(WELCOME_MESSAGE);
 
-      // Aggiungi a history (sia stato che ref)
+      // Aggiungi a history
       const welcomeHistory = [{ role: 'assistant', content: WELCOME_MESSAGE }];
       setConversationHistory(welcomeHistory);
       conversationHistoryRef.current = welcomeHistory;
@@ -83,7 +70,6 @@ export function useAzzurraChat() {
     setCurrentMessage(text);
 
     try {
-      // Chiama endpoint TTS
       const response = await fetch('/api/tts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -95,8 +81,6 @@ export function useAzzurraChat() {
       }
 
       const { audio } = await response.json();
-
-      // Decodifica Base64 PCM e riproduci
       await playPCMAudio(audio);
 
     } catch (err) {
@@ -108,30 +92,26 @@ export function useAzzurraChat() {
     }
   }, []);
 
-  // Riproduci audio PCM (formato OpenAI TTS)
+  // Riproduci audio PCM
   const playPCMAudio = useCallback(async (base64Audio) => {
     return new Promise((resolve, reject) => {
       try {
-        // Decodifica Base64
         const binaryString = atob(base64Audio);
         const bytes = new Uint8Array(binaryString.length);
         for (let i = 0; i < binaryString.length; i++) {
           bytes[i] = binaryString.charCodeAt(i);
         }
 
-        // PCM 24kHz, 16-bit, mono -> Float32
         const pcm16 = new Int16Array(bytes.buffer);
         const float32 = new Float32Array(pcm16.length);
         for (let i = 0; i < pcm16.length; i++) {
           float32[i] = pcm16[i] / 32768.0;
         }
 
-        // Crea AudioBuffer
         const audioContext = audioContextRef.current;
         const audioBuffer = audioContext.createBuffer(1, float32.length, 24000);
         audioBuffer.getChannelData(0).set(float32);
 
-        // Riproduci
         const source = audioContext.createBufferSource();
         source.buffer = audioBuffer;
         source.connect(audioContext.destination);
@@ -157,7 +137,7 @@ export function useAzzurraChat() {
       try {
         currentAudioRef.current.stop();
       } catch (e) {
-        // Ignora errori se già fermato
+        // Ignora
       }
       currentAudioRef.current = null;
       setIsTalking(false);
@@ -168,9 +148,7 @@ export function useAzzurraChat() {
   const startListening = useCallback(async () => {
     if (!streamRef.current || isListening) return;
 
-    // Ferma eventuale audio in riproduzione
     stopAudio();
-
     audioChunksRef.current = [];
 
     try {
@@ -186,7 +164,6 @@ export function useAzzurraChat() {
 
       mediaRecorder.onstop = async () => {
         if (audioChunksRef.current.length === 0) return;
-
         const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
         await processAudio(audioBlob);
       };
@@ -204,17 +181,15 @@ export function useAzzurraChat() {
   // Ferma registrazione vocale
   const stopListening = useCallback(() => {
     if (!mediaRecorderRef.current || !isListening) return;
-
     mediaRecorderRef.current.stop();
     setIsListening(false);
   }, [isListening]);
 
-  // Processa audio registrato con Whisper STT
+  // Processa audio con STT
   const processAudio = useCallback(async (audioBlob) => {
     setIsProcessing(true);
 
     try {
-      // Converti blob in Base64
       const reader = new FileReader();
       const base64Audio = await new Promise((resolve, reject) => {
         reader.onloadend = () => {
@@ -225,7 +200,6 @@ export function useAzzurraChat() {
         reader.readAsDataURL(audioBlob);
       });
 
-      // Chiama endpoint STT
       const sttResponse = await fetch('/api/stt', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -259,29 +233,21 @@ export function useAzzurraChat() {
 
     // Aggiungi messaggio utente alla history
     const userMessage = { role: 'user', content: text };
-
-    // USA IL REF per avere sempre il valore aggiornato (evita stale closures!)
     const currentHistory = conversationHistoryRef.current;
     const updatedHistory = [...currentHistory, userMessage];
 
-    // Aggiorna sia lo stato che il ref
     setConversationHistory(updatedHistory);
     conversationHistoryRef.current = updatedHistory;
 
-    console.log('Sending message with history length:', updatedHistory.length);
-    console.log('📋 discussedRecipes inviato al backend:', discussedRecipesRef.current);
-    console.log('🎯 proposedRecipes inviato al backend:', proposedRecipesRef.current);
+    console.log('📤 Invio messaggio:', text);
 
     try {
-      // Chiama endpoint chat con la history AGGIORNATA, ricette discusse e proposte
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           message: text,
-          conversationHistory: updatedHistory,
-          discussedRecipes: discussedRecipesRef.current,  // Ricette già discusse (per esclusione)
-          proposedRecipes: proposedRecipesRef.current     // Ricette proposte (per follow-up)
+          conversationHistory: updatedHistory
         })
       });
 
@@ -292,37 +258,26 @@ export function useAzzurraChat() {
       const data = await response.json();
       const reply = data.reply;
 
-      // Traccia ricette discusse (dal RAG)
+      console.log('📥 Risposta ricevuta, ricette trovate:', data.recipesFound);
+
+      // Traccia ricette discusse per PDF/QR finale
       if (data.recipeTitles && data.recipeTitles.length > 0) {
-        console.log('🍰 Ricette trovate dal RAG:', data.recipeTitles);
         setDiscussedRecipes(prev => {
           const newSet = new Set([...prev, ...data.recipeTitles]);
-          const updated = [...newSet];
-          console.log('🍰 discussedRecipes aggiornato:', updated);
-          return updated;
+          return [...newSet];
         });
-      } else {
-        console.log('⚠️ Nessuna ricetta trovata dal RAG per questo messaggio');
-      }
-
-      // Traccia nuove proposte (suggerimenti random generati dal backend)
-      if (data.suggestedRecipes && data.suggestedRecipes.length > 0) {
-        console.log('🎲 Nuove proposte ricevute dal backend:', data.suggestedRecipes);
-        setProposedRecipes(data.suggestedRecipes);
-        proposedRecipesRef.current = data.suggestedRecipes;
       }
 
       setIsProcessing(false);
 
-      // Pronuncia la risposta (currentMessage sarà visibile durante il parlato)
+      // Pronuncia la risposta
       await speakText(reply);
 
-      // Aggiungi risposta alla history DOPO aver finito di parlare
-      // Così evitiamo duplicazione visiva
+      // Aggiungi risposta alla history
       const assistantMessage = { role: 'assistant', content: reply };
       setConversationHistory(prev => {
         const newHistory = [...prev, assistantMessage];
-        conversationHistoryRef.current = newHistory; // Aggiorna anche il ref!
+        conversationHistoryRef.current = newHistory;
         return newHistory;
       });
 
@@ -330,29 +285,23 @@ export function useAzzurraChat() {
       console.error('Chat error:', err);
       setError('Errore nella comunicazione con Azzurra');
       setIsProcessing(false);
-
-      // Messaggio di fallback
       await speakText("Scusami, non ho capito bene. Puoi ripetere?");
     }
-  }, [speakText]); // Usiamo conversationHistoryRef invece di conversationHistory
+  }, [speakText]);
 
-  // Disconnetti e pulisci risorse
+  // Disconnetti
   const disconnect = useCallback(() => {
-    // Ferma registrazione
     if (mediaRecorderRef.current && isListening) {
       mediaRecorderRef.current.stop();
     }
 
-    // Ferma audio
     stopAudio();
 
-    // Chiudi stream microfono
     if (streamRef.current) {
       streamRef.current.getTracks().forEach(track => track.stop());
       streamRef.current = null;
     }
 
-    // Chiudi AudioContext
     if (audioContextRef.current) {
       audioContextRef.current.close();
       audioContextRef.current = null;
@@ -371,7 +320,6 @@ export function useAzzurraChat() {
   }, []);
 
   return {
-    // Stati
     isLoading,
     isReady,
     isTalking,
@@ -379,10 +327,8 @@ export function useAzzurraChat() {
     isProcessing,
     error,
     conversationHistory,
-    discussedRecipes,
+    discussedRecipes,  // Per PDF/QR finale
     currentMessage,
-
-    // Azioni
     initialize,
     startListening,
     stopListening,
