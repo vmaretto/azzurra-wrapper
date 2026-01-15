@@ -1,5 +1,5 @@
 // src/components/AzzurraChat.jsx
-// UI Chat vocale/testuale con logo Azzurra animato
+// UI Chat vocale/testuale - stile chatbot classico
 
 import { useState, useEffect, useRef } from 'react';
 import { useAzzurraChat } from '../hooks/useAzzurraChat';
@@ -30,7 +30,7 @@ export function AzzurraChat({ onFinish }) {
   // Auto-scroll alla fine dei messaggi
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [conversationHistory]);
+  }, [conversationHistory, currentMessage]);
 
   // Tap to Start
   const handleStart = async () => {
@@ -66,12 +66,19 @@ export function AzzurraChat({ onFinish }) {
     }
   };
 
-  // Determina stato avatar per animazione
-  const getAvatarState = () => {
+  // Stato per lo status text
+  const getStatusText = () => {
+    if (isTalking) return 'Sta parlando...';
+    if (isListening) return 'Ti ascolto...';
+    if (isProcessing) return 'Elaboro...';
+    return 'Online';
+  };
+
+  const getStatusClass = () => {
     if (isTalking) return 'talking';
     if (isListening) return 'listening';
     if (isProcessing) return 'processing';
-    return 'idle';
+    return 'ready';
   };
 
   return (
@@ -100,22 +107,16 @@ export function AzzurraChat({ onFinish }) {
       {/* Chat Interface */}
       {isReady && (
         <div className="chat-interface">
-          {/* Header con Avatar Animato */}
+          {/* Header compatto con avatar piccolo */}
           <div className="chat-header">
-            <div className={`avatar-circle ${getAvatarState()}`}>
-              <img
-                src="/logo-azzurra.png"
-                alt="Azzurra"
-                className="avatar-image"
-              />
-              <div className="avatar-pulse"></div>
-              <div className="avatar-pulse delay"></div>
+            <div className="header-avatar">
+              <img src="/logo-azzurra.png" alt="Azzurra" />
             </div>
-            <div className="avatar-status">
-              {isTalking && <span className="status-talking">Azzurra sta parlando...</span>}
-              {isListening && <span className="status-listening">Ti sto ascoltando...</span>}
-              {isProcessing && <span className="status-processing">Sto elaborando...</span>}
-              {!isTalking && !isListening && !isProcessing && <span className="status-ready">Pronta</span>}
+            <div className="header-info">
+              <div className="header-name">Azzurra</div>
+              <div className={`header-status ${getStatusClass()}`}>
+                {getStatusText()}
+              </div>
             </div>
           </div>
 
@@ -133,7 +134,7 @@ export function AzzurraChat({ onFinish }) {
             ))}
             {/* Messaggio corrente in riproduzione */}
             {isTalking && currentMessage && (
-              <div className="chat-message assistant speaking">
+              <div className="chat-message assistant">
                 <div className="message-bubble">
                   {currentMessage}
                   <span className="speaking-indicator">...</span>
@@ -145,20 +146,21 @@ export function AzzurraChat({ onFinish }) {
 
           {/* Controlli fissi in basso */}
           <div className="chat-controls">
-            {/* Input stile chatbot moderno */}
-            <form onSubmit={handleSendText} className="chat-input-container">
+            {/* Barra input semplice */}
+            <form onSubmit={handleSendText} className="chat-input-row">
               <input
                 type="text"
                 value={inputText}
                 onChange={(e) => setInputText(e.target.value)}
                 placeholder="Scrivi un messaggio..."
                 disabled={isProcessing || isTalking}
-                className="text-input"
+                className="chat-text-input"
+                autoComplete="off"
               />
               <button
                 type="submit"
                 disabled={!inputText.trim() || isProcessing || isTalking}
-                className="send-button"
+                className="chat-send-btn"
                 aria-label="Invia messaggio"
               >
                 <svg viewBox="0 0 24 24" fill="currentColor">
@@ -168,18 +170,18 @@ export function AzzurraChat({ onFinish }) {
             </form>
 
             {/* Pulsanti azione */}
-            <div className="action-buttons">
+            <div className="chat-action-buttons">
               {/* Pulsante Microfono */}
-              <div className="action-btn-wrapper">
+              <div className="chat-action-item">
                 <button
-                  className={`mic-button ${isListening ? 'recording' : ''}`}
+                  className={`chat-circle-btn chat-mic-btn ${isListening ? 'recording' : ''}`}
                   onClick={handleMicToggle}
                   disabled={isProcessing || isTalking}
                   aria-label={isListening ? 'Ferma registrazione' : 'Parla'}
                 >
                   {isListening ? (
                     <svg viewBox="0 0 24 24" fill="currentColor">
-                      <path d="M6 6h12v12H6z"/>
+                      <rect x="6" y="6" width="12" height="12" rx="2"/>
                     </svg>
                   ) : (
                     <svg viewBox="0 0 24 24" fill="currentColor">
@@ -187,16 +189,16 @@ export function AzzurraChat({ onFinish }) {
                     </svg>
                   )}
                 </button>
-                <span className="action-btn-label">
+                <span className="chat-action-label">
                   {isListening ? 'Stop' : 'Parla'}
                 </span>
               </div>
 
               {/* Pulsante Stop Audio (solo se sta parlando) */}
               {isTalking && (
-                <div className="action-btn-wrapper">
+                <div className="chat-action-item">
                   <button
-                    className="stop-button"
+                    className="chat-circle-btn chat-stop-btn"
                     onClick={stopAudio}
                     aria-label="Ferma audio"
                   >
@@ -204,14 +206,14 @@ export function AzzurraChat({ onFinish }) {
                       <path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z"/>
                     </svg>
                   </button>
-                  <span className="action-btn-label">Muto</span>
+                  <span className="chat-action-label">Muto</span>
                 </div>
               )}
 
               {/* Pulsante Esci */}
-              <div className="action-btn-wrapper">
+              <div className="chat-action-item">
                 <button
-                  className="exit-button"
+                  className="chat-circle-btn chat-exit-btn"
                   onClick={handleDisconnect}
                   aria-label="Termina esperienza"
                 >
@@ -219,7 +221,7 @@ export function AzzurraChat({ onFinish }) {
                     <path d="M10.09 15.59L11.5 17l5-5-5-5-1.41 1.41L12.67 11H3v2h9.67l-2.58 2.59zM19 3H5c-1.11 0-2 .9-2 2v4h2V5h14v14H5v-4H3v4c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z"/>
                   </svg>
                 </button>
-                <span className="action-btn-label">Esci</span>
+                <span className="chat-action-label">Esci</span>
               </div>
             </div>
           </div>
