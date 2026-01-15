@@ -93,9 +93,12 @@ export function useAzzurra() {
     if (data.recipeTitles && data.recipeTitles.length > 0) {
       setDiscussedRecipes(prev => {
         const newSet = new Set([...prev, ...data.recipeTitles]);
-        return [...newSet];
+        const updated = [...newSet];
+        console.log('🍰 Ricette questo turno:', data.recipeTitles);
+        console.log('🍰 Ricette precedenti:', prev);
+        console.log('🍰 Ricette TOTALI accumulate:', updated);
+        return updated;
       });
-      console.log('🍰 Ricette tracciate:', data.recipeTitles);
     }
 
     return data.reply;
