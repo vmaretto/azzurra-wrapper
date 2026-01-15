@@ -233,6 +233,7 @@
 .chat-input-wrapper {
   position: relative;
   margin-bottom: 20px;
+  width: 100%;
 }
 
 /* Textarea grande multilinea */
