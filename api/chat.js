@@ -22,6 +22,25 @@ const openai = openaiKey
   ? new OpenAI({ apiKey: openaiKey })
   : null;
 
+// Lista completa delle 52 ricette nel database
+const RICETTE_DATABASE = [
+  // DOLCI (45)
+  'Amaretti', 'Cantuccini Toscani IGP', 'Ricciarelli di Siena IGP', 'Savoiardi',
+  'Castagnaccio', 'Certosino', 'Cicerchiata', 'Croccante', 'Migliaccio',
+  'Pan dolce alle noci', 'Panforte di Siena IGP', 'Presnitz', 'Torrone',
+  'Biancomangiare', 'Cassata siciliana', 'Pere con il vino rosso', 'Tiramisù',
+  'Zabaione', 'Zuppa inglese', 'Crostata di ricotta', 'Maritozzi', 'Panettone',
+  'Pastiera napoletana', 'Pesche ripiene alla piemontese', 'Sfogliatelle napoletane',
+  'Strudel di mele', 'Babà', 'Cannoli', 'Castagnole', 'Chiacchiere o frappe',
+  'Frittelle di riso', 'Torta sabbiosa', 'Brigidini', 'Cavallucci di Siena',
+  'Cioccolatini alle mandorle', 'Crostata con confettura di frutta', 'Frittelle di mele',
+  'Fave dei morti', 'Pinoccate', 'Budino al cioccolato', 'Budino di semolino',
+  'Gelato alla crema', 'Granita di caffè con panna', 'Crema fritta', 'Torta Margherita',
+  // SALATI/BAKERY (7)
+  'Bruschetta', 'Calzone alla napoletana', 'Panzerotti fritti', 'Piadina Romagnola IGP',
+  'Pizza napoletana STG', 'Torta di patate', 'Torta Pasqualina con spinaci'
+];
+
 // System prompt per Azzurra
 const AZZURRA_SYSTEM_PROMPT = `## PERSONA
 Mi chiamo Azzurra e sono la tua guida virtuale nel mondo della tradizione dolciaria italiana. Sono un'esperta di storia gastronomica, con una passione profonda per le ricette che hanno attraversato i secoli nelle cucine del nostro Paese. Parlo in modo caldo e accogliente, come una nonna che racconta storie di famiglia, ma con la precisione di chi ha studiato a fondo le origini e l'evoluzione dei nostri dolci tradizionali. Amo condividere curiosità storiche e aneddoti che rendono ogni ricetta un piccolo viaggio nel tempo. Sono sempre positiva e incoraggiante, pronta ad aiutarti a scegliere la versione perfetta di ogni dolce in base ai tuoi gusti e alle tue esigenze.
@@ -33,11 +52,11 @@ Quando l'utente chiede informazioni su un dolce o una ricetta:
 3. Subito dopo, comunica quante versioni sono disponibili e da quali ricettari provengono, poi chiedi all'utente quale versione preferisce esplorare
 4. Quando l'utente sceglie una versione, fornisci gli ingredienti, il procedimento sintetizzato e le calorie se disponibili
 5. Rispondi sempre in modo discorsivo e naturale, senza usare elenchi puntati o numerati. Mantieni le risposte concise ma complete
-6. Se l'utente chiede qualcosa che non riguarda le ricette dolci italiane, rispondi gentilmente che sei specializzata in questo ambito e offri di aiutarlo con i dolci della tradizione
+6. Se l'utente chiede qualcosa che non è nel tuo database, rispondi gentilmente che non hai informazioni su quella ricetta specifica e offri di aiutarlo con altre ricette della tradizione
 7. Concludi sempre chiedendo se l'utente desidera scoprire un'altra ricetta o un'altra versione
 
 ## KNOWLEDGE
-Azzurra conosce 46 ricette della tradizione dolciaria italiana, ciascuna disponibile in più versioni storiche provenienti dai più importanti ricettari italiani:
+Azzurra conosce 52 ricette della tradizione italiana, ciascuna disponibile in più versioni storiche provenienti dai più importanti ricettari italiani:
 - v1: Accademia Italiana della Cucina (1953)
 - v2: La Scienza in Cucina di Pellegrino Artusi (1891)
 - v3: Il Cucchiaio d'Argento (1959)
@@ -46,16 +65,23 @@ Azzurra conosce 46 ricette della tradizione dolciaria italiana, ciascuna disponi
 - v6: Il Talismano della Felicità di Ada Boni (1999)
 - v7: Gualtiero Marchesi (2015)
 
-Le categorie includono: Biscotti, Dolci al cucchiaio, Dolci al forno, Dolci fritti, Cioccolatini, Torte.
+FOCUS PRINCIPALE: Dolci della tradizione (Biscotti, Dolci al cucchiaio, Dolci al forno, Dolci fritti, Cioccolatini, Torte, Gelati, Budini).
+
+RICETTE SALATE/BAKERY (solo se richieste esplicitamente): Bruschetta, Calzone alla napoletana, Panzerotti fritti, Piadina Romagnola IGP, Pizza napoletana STG, Torta di patate, Torta Pasqualina con spinaci.
 
 Per ogni ricetta Azzurra conosce: la storia e le origini (scheda antropologica), gli ingredienti con quantità, il procedimento di preparazione, il numero di persone e le calorie per porzione.
+
+## CATALOGO COMPLETO (52 ricette)
+Queste sono le UNICHE ricette di cui puoi parlare:
+${RICETTE_DATABASE.join(', ')}.
 
 ## REGOLE FONDAMENTALI
 - Le tue risposte verranno PARLATE da un avatar, quindi usa un linguaggio naturale e colloquiale
 - Rispondi SOLO basandoti sulle informazioni presenti nella tua knowledge base (le ricette fornite nel contesto)
-- Se una ricetta non è presente nella knowledge base, dì gentilmente che non hai informazioni su quel dolce specifico
-- Non inventare ricette o informazioni non presenti nel database
+- Se una ricetta non è presente nel CATALOGO COMPLETO sopra, dì gentilmente che non hai informazioni su quella ricetta specifica
+- NON INVENTARE MAI ricette o informazioni non presenti nel database
 - Mantieni le risposte concise per il parlato (max 3-4 frasi per turno)
+- Se l'utente chiede genericamente un consiglio, proponi SOLO dolci dal catalogo
 
 ## FORMATO RISPOSTA - MOLTO IMPORTANTE
 - NON usare MAI asterischi per indicare azioni o emozioni (esempio: *sorride*, *con entusiasmo*)
@@ -96,7 +122,12 @@ async function searchRecipes(query, limit = 5) {
 
 // Formatta le ricette trovate come contesto
 function formatRecipesContext(recipes) {
-  if (!recipes || recipes.length === 0) return '';
+  if (!recipes || recipes.length === 0) {
+    return `\n\n## NESSUNA RICETTA TROVATA\nNon ho trovato ricette pertinenti alla domanda. Rispondi dicendo che non hai informazioni su questo dolce specifico e chiedi se l'utente vuole scoprire un altro dolce della tradizione italiana.`;
+  }
+
+  // Lista esplicita dei titoli disponibili
+  const availableTitles = [...new Set(recipes.map(r => r.titolo))];
 
   const context = recipes.map(r => `
 ### ${r.titolo}
@@ -109,7 +140,12 @@ Calorie: ${r.calorie || 'Non disponibili'}
 Persone: ${r.n_persone || 'Non specificato'}
 `).join('\n');
 
-  return `\n\n## RICETTE DALLA KNOWLEDGE BASE\nUsa SOLO queste informazioni per rispondere. Non inventare nulla che non sia presente qui:\n${context}`;
+  return `\n\n## RICETTE DISPONIBILI PER QUESTA RICHIESTA
+IMPORTANTE: Puoi parlare SOLO di queste ricette: ${availableTitles.join(', ')}.
+Se l'utente chiede un dolce diverso da questi, rispondi che non hai informazioni su quel dolce.
+NON INVENTARE MAI ricette che non sono in questa lista.
+
+${context}`;
 }
 
 export default async function handler(req, res) {
@@ -144,7 +180,7 @@ export default async function handler(req, res) {
       messages: messages
     });
 
-    const reply = response.content[0].text;
+    let reply = response.content[0].text;
 
     // Filtra solo le ricette che sono EFFETTIVAMENTE menzionate nella risposta di Claude
     // (non tutte quelle trovate dal RAG, ma solo quelle di cui Claude parla)
@@ -159,11 +195,27 @@ export default async function handler(req, res) {
     console.log('RAG trovate:', allRagTitles);
     console.log('Menzionate nella risposta:', recipeTitles);
 
+    // VALIDAZIONE: Verifica che Claude parli solo di ricette nel database
+    // Controlla se la risposta menziona una ricetta che NON è nel catalogo
+    const replyLowerForValidation = reply.toLowerCase();
+
+    // Verifica se Claude ha menzionato qualcosa che sembra una ricetta
+    // ma che NON è stata trovata dal RAG
+    const mentionsGenericRecipe = /ricetta|ingredienti|procedimento|preparazione|dose|porzioni/i.test(reply);
+    const mentionsSpecificDish = /tiramis|torta|biscott|cantucc|panna cotta|profiterol|zabaione|crostata|panettone|pandoro|colomba|cannoli|cassata|sfogliatell|babà|zeppol|strufoli|panforte|ricciarell|cavallucc|brigidini|amaretti|savoiardi|meringh|bignè|frittell|castagnol|chiacchier|cenci|frappe|bugie|galani|ciambelle|bomboloni|mousse|budino|crema|gelato|granita|sorbetto|semifreddo|pizza|calzone|piadina|bruschetta|panzerott|focaccia|pane/i;
+
+    if (relevantRecipes.length === 0 && mentionsSpecificDish.test(reply) && mentionsGenericRecipe) {
+      // Claude potrebbe aver inventato - forza risposta sicura
+      console.warn('⚠️ ATTENZIONE: Claude potrebbe aver inventato una ricetta!');
+      reply = "Mi dispiace, non ho informazioni specifiche su questa ricetta nel mio archivio. Posso aiutarti con tanti dolci della tradizione italiana come il tiramisù, i cannoli, la pastiera napoletana o il panettone. Cosa ti piacerebbe scoprire?";
+    }
+
     res.status(200).json({
       reply,
       usage: response.usage,
       recipesFound: relevantRecipes.length,
-      recipeTitles
+      recipeTitles,
+      validated: true
     });
 
   } catch (error) {
