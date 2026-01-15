@@ -90,6 +90,19 @@ ${RICETTE_DATABASE.join(', ')}.
 - Se il campo "Calorie" non è presente o dice "Non disponibili", rispondi: "Per questa versione non ho il dato calorico disponibile"
 - NON fare stime, approssimazioni o calcoli calorici autonomi
 
+## REGOLE SULLA COERENZA DELLE VERSIONI - FONDAMENTALE
+- Quando presenti una versione di una ricetta, RICORDA sempre quale versione hai scelto (ricettario + anno)
+- Se l'utente chiede chiarimenti sulla stessa ricetta (es. "quante calorie?", "puoi ripetere?"), mantieni la STESSA versione già scelta
+- NON cambiare versione a meno che l'utente non chieda ESPLICITAMENTE un'altra versione
+- Quando dici le calorie o altri dettagli, SPECIFICA SEMPRE l'anno del ricettario (es. "secondo il Cucchiaio d'Argento del 1959...")
+- Se l'utente sembra dubbioso, NON interpretarlo come una richiesta di cambiare versione - probabilmente non ha sentito bene
+
+## REGOLE PER VERSIONI MULTIPLE DELLO STESSO RICETTARIO
+- Alcuni ricettari hanno PIÙ versioni di anni diversi (es. Cucchiaio d'Argento 1959 e 2020, Talismano 1931 e 1999)
+- Quando trovi versioni multiple dello STESSO ricettario con anni diversi, CHIEDI all'utente quale preferisce PRIMA di dare dettagli
+- Esempio: "Ho trovato la crema fritta sia nel Cucchiaio d'Argento del 1959 che in quello del 2020. Quale versione preferisci?"
+- Una volta che l'utente sceglie, mantieni quella versione per TUTTA la conversazione su quella ricetta
+
 ## FORMATO RISPOSTA - MOLTO IMPORTANTE
 - NON usare MAI asterischi per indicare azioni o emozioni (esempio: *sorride*, *con entusiasmo*)
 - NON usare MAI formattazione markdown (asterischi, trattini, elenchi puntati, grassetto)
@@ -182,6 +195,65 @@ async function searchRecipes(query, limit = 10) {
   }
 }
 
+// Valida che le calorie nella risposta corrispondano al contesto RAG
+function validateCalories(reply, recipes) {
+  if (!recipes || recipes.length === 0) return { valid: true, reply };
+
+  // Estrai numeri che sembrano calorie dalla risposta (pattern: numero + "calorie/caloria/kcal")
+  const calorieMatches = reply.match(/(\d+(?:\.\d+)?)\s*(?:calorie|caloria|kcal)/gi);
+  if (!calorieMatches) return { valid: true, reply }; // Nessuna caloria menzionata
+
+  // Estrai i valori numerici
+  const mentionedCalories = calorieMatches.map(match => {
+    const num = match.match(/(\d+(?:\.\d+)?)/);
+    return num ? parseFloat(num[1]) : null;
+  }).filter(Boolean);
+
+  // Raccogli tutte le calorie valide dal contesto RAG
+  const validCalories = recipes
+    .map(r => r.calorie)
+    .filter(c => c && c !== 'Non disponibili')
+    .map(c => {
+      // Estrai numero dalle calorie (es. "220 kcal per porzione" -> 220)
+      const match = c.match(/(\d+(?:\.\d+)?)/);
+      return match ? parseFloat(match[1]) : null;
+    })
+    .filter(Boolean);
+
+  console.log('🔢 Calorie menzionate nella risposta:', mentionedCalories);
+  console.log('🔢 Calorie valide dal RAG:', validCalories);
+
+  // Verifica che ogni caloria menzionata sia presente nel contesto
+  for (const mentioned of mentionedCalories) {
+    // Tolleranza del 5% per arrotondamenti
+    const isValid = validCalories.some(valid =>
+      Math.abs(mentioned - valid) <= valid * 0.05
+    );
+
+    if (!isValid) {
+      console.warn(`⚠️ Caloria ${mentioned} non trovata nel contesto RAG!`);
+      console.warn('Calorie valide disponibili:', validCalories);
+
+      // Se c'è una sola ricetta con calorie, suggerisci quella corretta
+      if (validCalories.length === 1) {
+        return {
+          valid: false,
+          reply: reply.replace(
+            new RegExp(`${mentioned}\\s*(?:calorie|caloria|kcal)`, 'gi'),
+            `${validCalories[0]} calorie`
+          ),
+          corrected: true
+        };
+      }
+
+      // Altrimenti, avvisa solo nel log ma lascia passare
+      // (potrebbe essere un caso legittimo con più versioni)
+    }
+  }
+
+  return { valid: true, reply };
+}
+
 // Formatta le ricette trovate come contesto
 function formatRecipesContext(recipes) {
   if (!recipes || recipes.length === 0) {
@@ -272,12 +344,20 @@ export default async function handler(req, res) {
       reply = "Mi dispiace, non ho informazioni specifiche su questa ricetta nel mio archivio. Posso aiutarti con tanti dolci della tradizione italiana come il tiramisù, i cannoli, la pastiera napoletana o il panettone. Cosa ti piacerebbe scoprire?";
     }
 
+    // VALIDAZIONE CALORIE: Verifica che i numeri di calorie siano nel contesto RAG
+    const calorieValidation = validateCalories(reply, relevantRecipes);
+    if (calorieValidation.corrected) {
+      console.log('✅ Calorie corrette automaticamente');
+      reply = calorieValidation.reply;
+    }
+
     res.status(200).json({
       reply,
       usage: response.usage,
       recipesFound: relevantRecipes.length,
       recipeTitles,
-      validated: true
+      validated: true,
+      calorieValidated: calorieValidation.valid
     });
 
   } catch (error) {
