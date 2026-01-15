@@ -144,13 +144,23 @@ export function AzzurraChat({ onFinish }) {
       {/* Chat Interface */}
       {isReady && (
         <div className="chat-interface">
-          {/* Header con logo */}
+          {/* Header con logo animato */}
           <div className="chat-header">
-            <img
-              src="/logo-azzurra.png"
-              alt="Azzurra"
-              className="header-logo"
-            />
+            <div className={`header-logo-container ${isTalking ? 'talking' : ''}`}>
+              <img
+                src="/logo-azzurra.png"
+                alt="Azzurra"
+                className="header-logo"
+              />
+              {/* Onde sonore animate */}
+              <div className="sound-waves">
+                <span></span>
+                <span></span>
+                <span></span>
+                <span></span>
+                <span></span>
+              </div>
+            </div>
             <div className="header-info">
               <div className="header-name">Azzurra</div>
               <div className={`header-status ${getStatusClass()}`}>

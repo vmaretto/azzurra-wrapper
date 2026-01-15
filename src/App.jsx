@@ -4,7 +4,6 @@ import ProfileForm from './components/ProfileForm.jsx';
 import ModeSelection from './components/ModeSelection.jsx';
 import AzzurraAvatar from './components/AzzurraAvatar.jsx';
 import AzzurraChat from './components/AzzurraChat.jsx';
-import AzzurraChatPremium from './components/AzzurraChatPremium.jsx';
 import Survey from './components/Survey.jsx';
 import Dashboard from './pages/Dashboard.jsx';
 
@@ -17,9 +16,7 @@ export default function App() {
   // Determina step iniziale e modalità in base ai parametri URL
   const getInitialStep = () => {
     if (isDirectMode) {
-      if (directModeType === 'chat') return 'chat';
-      if (directModeType === 'chat-premium') return 'chat-premium';
-      return 'avatar';
+      return directModeType === 'chat' ? 'chat' : 'avatar';
     }
     return 'welcome';
   };
@@ -47,7 +44,7 @@ export default function App() {
   const isDashboardRoute = window.location.pathname === '/dashboard' || window.location.pathname === '/admin';
 
   useEffect(() => {
-    if (step === 'azzurra' || step === 'avatar' || step === 'chat' || step === 'chat-premium') {
+    if (step === 'azzurra' || step === 'avatar' || step === 'chat') {
       setStartTime(Date.now());
     }
     if (step === 'survey' && startTime) {
@@ -102,10 +99,6 @@ export default function App() {
 
       {step === 'chat' && (
         <AzzurraChat onFinish={handleFinish} />
-      )}
-
-      {step === 'chat-premium' && (
-        <AzzurraChatPremium onFinish={handleFinish} />
       )}
 
       {step === 'survey' && (
