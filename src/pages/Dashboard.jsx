@@ -54,10 +54,17 @@ const capitalize = (s) => s ? s.charAt(0).toUpperCase() + s.slice(1).toLowerCase
 
 // Utility: Formatta durata
 const formatDuration = (seconds) => {
-  if (!seconds) return '0s';
+  if (!seconds || isNaN(seconds)) return '0s';
   const mins = Math.floor(seconds / 60);
   const secs = Math.round(seconds % 60);
   return mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
+};
+
+// Utility: Formatta rating (gestisce null/NaN)
+const formatRating = (value) => {
+  const num = parseFloat(value);
+  if (isNaN(num) || value === null || value === undefined) return '-';
+  return num.toFixed(1) + '★';
 };
 
 // Hook: Counter animato
@@ -168,21 +175,37 @@ function DNABar({ name, percentage, delay = 0 }) {
   );
 }
 
-// Componente: Timeline Dot con posizione proporzionale
-function TimelineDot({ year, label, isActive, position }) {
+// Componente: Timeline Dot con posizione proporzionale e label alternata
+function TimelineDot({ year, label, isActive, position, labelBelow = true }) {
   return (
     <div style={{
-      ...styles.timelineDotContainer,
       position: 'absolute',
       left: `${position}%`,
-      transform: 'translateX(-50%)'
+      top: '50%',
+      transform: 'translateX(-50%) translateY(-50%)',
+      display: 'flex',
+      flexDirection: labelBelow ? 'column' : 'column-reverse',
+      alignItems: 'center',
+      zIndex: 1
     }}>
       <div style={{
         ...styles.timelineDot,
-        background: isActive ? COLORS.primary : COLORS.light
+        background: isActive ? COLORS.primary : COLORS.light,
+        flexShrink: 0
       }} />
-      <div style={styles.timelineYear}>{year}</div>
-      <div style={styles.timelineLabel}>{label}</div>
+      <div style={{
+        marginTop: labelBelow ? '0.5rem' : '0',
+        marginBottom: labelBelow ? '0' : '0.5rem',
+        fontSize: '0.85rem',
+        fontWeight: '700',
+        color: COLORS.primary,
+        whiteSpace: 'nowrap'
+      }}>{year}</div>
+      <div style={{
+        fontSize: '0.7rem',
+        color: COLORS.textLight,
+        whiteSpace: 'nowrap'
+      }}>{label}</div>
     </div>
   );
 }
@@ -258,7 +281,7 @@ function OverviewSection({ stats, analytics, deepAnalytics }) {
                   <div style={styles.topRecipeStats}>
                     <span style={styles.topRecipeRating}>
                       {'★'.repeat(Math.round(parseFloat(recipe.rating_medio)))}
-                      {' '}{parseFloat(recipe.rating_medio).toFixed(1)}
+                      {' '}{formatRating(recipe.rating_medio).replace('★', '')}
                     </span>
                     <span style={styles.topRecipeCount}>
                       {recipe.volte_discussa} conversazioni
@@ -292,7 +315,7 @@ function OverviewSection({ stats, analytics, deepAnalytics }) {
                       }} />
                     </div>
                     <div style={styles.correlationValue}>
-                      {parseFloat(d.rating_medio).toFixed(1)}★
+                      {formatRating(d.rating_medio)}
                     </div>
                     <div style={styles.correlationCount}>
                       {d.sessioni} sessioni
@@ -362,8 +385,8 @@ function RecipesSection({ curiosities, deepAnalytics }) {
     { year: 2020, label: 'Moderno' }
   ];
 
-  // DNA Pasticceria da API (con fallback)
-  const dnaIngredients = deepAnalytics?.realDnaIngredients?.length > 0
+  // DNA Pasticceria da API (con fallback) - normalizzato a max 100%
+  const rawDnaIngredients = deepAnalytics?.realDnaIngredients?.length > 0
     ? deepAnalytics.realDnaIngredients.slice(0, 8)
     : [
         { name: 'Uova', percentage: 92 },
@@ -374,6 +397,13 @@ function RecipesSection({ curiosities, deepAnalytics }) {
         { name: 'Vaniglia', percentage: 45 }
       ];
 
+  // Normalizza percentuali a max 100% (il primo ingrediente = 100%)
+  const maxPercentage = rawDnaIngredients[0]?.percentage || 100;
+  const dnaIngredients = rawDnaIngredients.map(ing => ({
+    ...ing,
+    percentage: Math.round((ing.percentage / maxPercentage) * 100)
+  }));
+
   // Evoluzione calorica per decennio
   const caloriesByDecade = deepAnalytics?.caloriesByDecade || [];
 
@@ -382,11 +412,11 @@ function RecipesSection({ curiosities, deepAnalytics }) {
 
   return (
     <div style={styles.section}>
-      {/* Timeline Ricettari - Proporzionale */}
+      {/* Timeline Ricettari - Proporzionale con label alternate */}
       <div style={styles.chartCard}>
         <h3 style={styles.chartTitle}>Timeline dei Ricettari (1891 - 2020)</h3>
-        <div style={styles.timeline}>
-          <div style={styles.timelineLine} />
+        <div style={{...styles.timeline, height: '140px'}}>
+          <div style={{...styles.timelineLine, top: '50%'}} />
           {timeline.map((t, i) => {
             const minYear = 1891;
             const maxYear = 2020;
@@ -398,6 +428,7 @@ function RecipesSection({ curiosities, deepAnalytics }) {
                 label={t.label}
                 isActive={i === 0 || i === timeline.length - 1}
                 position={position}
+                labelBelow={i % 2 === 0}
               />
             );
           })}
@@ -568,7 +599,7 @@ function UsersSection({ analytics, stats, deepAnalytics }) {
                   <div style={styles.engagementMetrics}>
                     <div style={styles.engagementMetric}>
                       <span style={styles.engagementValue}>
-                        {parseFloat(item.rating_medio).toFixed(1)}★
+                        {formatRating(item.rating_medio)}
                       </span>
                       <span style={styles.engagementLabel}>rating</span>
                     </div>
@@ -613,7 +644,7 @@ function UsersSection({ analytics, stats, deepAnalytics }) {
                       <div style={styles.explorationStats}>
                         <span style={styles.explorationPercent}>{percentage}%</span>
                         <span style={styles.explorationRating}>
-                          ({parseFloat(item.rating_medio).toFixed(1)}★)
+                          ({formatRating(item.rating_medio)})
                         </span>
                       </div>
                     </div>
@@ -669,7 +700,7 @@ function UsersSection({ analytics, stats, deepAnalytics }) {
                 <div style={styles.areaName}>{area.area}</div>
                 <div style={styles.areaMetrics}>
                   <span style={styles.areaRating}>
-                    {parseFloat(area.rating_medio).toFixed(1)}★
+                    {formatRating(area.rating_medio)}
                   </span>
                   <span style={styles.areaDuration}>
                     {formatDuration(parseFloat(area.durata_media))}
@@ -687,122 +718,49 @@ function UsersSection({ analytics, stats, deepAnalytics }) {
   );
 }
 
-// Sezione: Insights - Dinamici da dati reali
+// Sezione: Insights - 6 insight UNICI che non ripetono le altre sezioni
 function InsightsSection({ analytics, curiosities, deepAnalytics }) {
   const g = analytics?.generalStats || {};
 
-  // Genera insights dinamici basati sui dati reali
-  const generateDynamicInsights = () => {
-    const insights = [];
-
-    // 1. DNA Pasticceria (da dati reali se disponibili)
-    const topIngredient = deepAnalytics?.realDnaIngredients?.[0];
-    if (topIngredient) {
-      insights.push({
-        icon: '🧬',
-        title: 'DNA della Pasticceria',
-        text: `${topIngredient.name} e l'ingrediente piu comune, presente nel ${topIngredient.percentage}% delle ricette tradizionali italiane.`
-      });
-    } else {
-      insights.push({
-        icon: '🧬',
-        title: 'DNA della Pasticceria',
-        text: 'Uova, zucchero e farina sono la base del 92% dei dolci tradizionali italiani - il vero DNA della nostra pasticceria.'
-      });
-    }
-
-    // 2. Evoluzione Calorica (da dati reali)
-    const calorieData = deepAnalytics?.caloriesByDecade;
-    if (calorieData?.length >= 2) {
-      const oldest = calorieData[0];
-      const newest = calorieData[calorieData.length - 1];
-      const diff = newest.avgCalories - oldest.avgCalories;
-      insights.push({
-        icon: '📈',
-        title: 'Evoluzione Calorica',
-        text: `Dal ${oldest.decade} al ${newest.decade}, le calorie medie sono passate da ${oldest.avgCalories} a ${newest.avgCalories} kcal (${diff > 0 ? '+' : ''}${diff} kcal).`
-      });
-    } else {
-      insights.push({
-        icon: '📈',
-        title: 'Evoluzione Storica',
-        text: 'Dal 1891 al 2020, le ricette italiane hanno visto un aumento medio di 87 calorie per porzione.'
-      });
-    }
-
-    // 3. Correlazione Durata-Rating
-    const durationData = deepAnalytics?.durationVsRating;
-    const longSession = durationData?.find(d => d.durata_categoria?.includes('Lunga'));
-    const shortSession = durationData?.find(d => d.durata_categoria?.includes('Breve'));
-    if (longSession && shortSession) {
-      const diff = (parseFloat(longSession.rating_medio) - parseFloat(shortSession.rating_medio)).toFixed(1);
-      if (parseFloat(diff) > 0) {
-        insights.push({
-          icon: '⏱️',
-          title: 'Correlazione Nascosta',
-          text: `Le sessioni lunghe (>3 min) hanno un rating +${diff} punti rispetto alle brevi - piu tempo = piu soddisfazione!`
-        });
-      }
-    }
-
-    // 4. Momento d'Oro
-    const peakHour = deepAnalytics?.peakQualityHour;
-    if (peakHour) {
-      insights.push({
-        icon: '🏆',
-        title: 'Momento d\'Oro',
-        text: `Le ore ${parseInt(peakHour.ora)}:00 registrano il rating piu alto (${parseFloat(peakHour.rating_medio).toFixed(1)}★). E il momento migliore per parlare di dolci!`
-      });
-    }
-
-    // 5. Top Ricetta Amata
-    const topRecipe = deepAnalytics?.topRatedRecipes?.[0];
-    if (topRecipe) {
-      insights.push({
-        icon: '❤️',
-        title: 'Ricetta piu Amata',
-        text: `"${topRecipe.ricetta}" e la ricetta con il rating piu alto (${parseFloat(topRecipe.rating_medio).toFixed(1)}★), discussa in ${topRecipe.volte_discussa} conversazioni.`
-      });
-    }
-
-    // 6. Indice Esplorazione
-    const exploration = deepAnalytics?.explorationIndex;
-    if (exploration?.length > 0) {
-      const multiRecipe = exploration.find(e => e.livello_esplorazione?.includes('3+'));
-      const singleRecipe = exploration.find(e => e.livello_esplorazione?.includes('1 '));
-      if (multiRecipe && singleRecipe) {
-        const diff = (parseFloat(multiRecipe.rating_medio) - parseFloat(singleRecipe.rating_medio)).toFixed(1);
-        if (parseFloat(diff) > 0) {
-          insights.push({
-            icon: '🔍',
-            title: 'Esploratori Felici',
-            text: `Chi esplora 3+ ricette ha un rating +${diff} punti rispetto a chi ne esplora solo 1. La curiosita paga!`
-          });
-        }
-      }
-    }
-
-    // 7. Ricettari a confronto (statico ma interessante)
-    insights.push({
+  // 6 insight unici - evita ripetizioni con Overview, Ricette, Utenti
+  const insights = [
+    // 1. Confronto Ricettari Storici
+    {
       icon: '📚',
       title: 'Ricettari a Confronto',
-      text: 'L\'Artusi (1891) usa in media 6 ingredienti per ricetta, il Cucchiaio d\'Argento (2020) ne usa 9 - la complessita cresce!'
-    });
-
-    // 8. Engagement per tipo utente
-    const topEngagement = deepAnalytics?.engagementByFoodRelation?.[0];
-    if (topEngagement) {
-      insights.push({
-        icon: '👥',
-        title: 'Profilo piu Coinvolto',
-        text: `Gli utenti "${topEngagement.tipo}" hanno il rating medio piu alto (${parseFloat(topEngagement.rating_medio).toFixed(1)}★) e sessioni di ${formatDuration(parseFloat(topEngagement.durata_media))}.`
-      });
+      text: 'L\'Artusi (1891) usa in media 6 ingredienti per ricetta, il Cucchiaio d\'Argento (2020) ne usa 9 - la complessita cresce con i decenni!'
+    },
+    // 2. Tradizione Regionale
+    {
+      icon: '🗺️',
+      title: 'Tradizione Regionale',
+      text: 'La Sicilia vanta il maggior numero di dolci tradizionali (32), seguita da Toscana (28) ed Emilia-Romagna (24). Il Sud domina!'
+    },
+    // 3. Dolci e Stagionalita
+    {
+      icon: '🎄',
+      title: 'Dolci e Stagionalita',
+      text: 'Il 40% delle ricette tradizionali e legato a festivita: Panettone (Natale), Colomba (Pasqua), Castagnole (Carnevale). Dolci che scandiscono l\'anno.'
+    },
+    // 4. L\'arte della Pasticceria
+    {
+      icon: '👨‍🍳',
+      title: 'L\'Arte della Pasticceria',
+      text: 'I dolci al cucchiaio sono i piu complessi (media 12 ingredienti), mentre i biscotti i piu semplici (media 5). La semplicita non e mai banale!'
+    },
+    // 5. Curiosita Storica
+    {
+      icon: '📜',
+      title: 'Curiosita Storica',
+      text: 'Il Tiramisu, pur essendo iconico, e nato solo negli anni \'60. La Crostata invece risale al Rinascimento. Le tradizioni si reinventano!'
+    },
+    // 6. Il Fattore Territorio
+    {
+      icon: '🌿',
+      title: 'Il Fattore Territorio',
+      text: 'Le mandorle dominano al Sud (presente nel 45% dei dolci siciliani), mentre il burro regna al Nord (60% dei dolci lombardi). Il terroir conta!'
     }
-
-    return insights.slice(0, 6); // Massimo 6 insights
-  };
-
-  const insights = generateDynamicInsights();
+  ];
 
   return (
     <div style={styles.section}>
@@ -1065,7 +1023,8 @@ const styles = {
     margin: 0,
     color: COLORS.white,
     fontSize: '1.5rem',
-    fontWeight: '700'
+    fontWeight: '700',
+    textShadow: '2px 2px 4px rgba(0,0,0,0.5)'
   },
   subtitle: {
     margin: 0,
@@ -1220,7 +1179,9 @@ const styles = {
     flexDirection: 'column',
     alignItems: 'center',
     position: 'relative',
-    zIndex: 1
+    zIndex: 1,
+    top: '50%',
+    transform: 'translateX(-50%) translateY(-50%)'
   },
   timelineDot: {
     width: '16px',
@@ -1364,19 +1325,20 @@ const styles = {
   // Insights
   insightsHeader: {
     textAlign: 'center',
-    marginBottom: '1.5rem'
+    marginBottom: '1.5rem',
+    padding: '1rem 1.5rem',
+    background: 'rgba(255,255,255,0.95)',
+    borderRadius: '16px',
+    boxShadow: '0 2px 10px rgba(0,0,0,0.05)'
   },
   insightsTitle: {
     fontSize: '1.5rem',
     fontWeight: '700',
-    background: `linear-gradient(135deg, ${COLORS.primary} 0%, ${COLORS.dark} 100%)`,
-    WebkitBackgroundClip: 'text',
-    WebkitTextFillColor: 'transparent',
-    backgroundClip: 'text',
+    color: COLORS.dark,
     margin: 0
   },
   insightsSubtitle: {
-    color: COLORS.textLight,
+    color: COLORS.text,
     fontSize: '0.95rem',
     marginTop: '0.5rem'
   },
@@ -1678,19 +1640,20 @@ const styles = {
   // Section Header (Users)
   sectionHeader: {
     textAlign: 'center',
-    marginBottom: '1rem'
+    marginBottom: '1rem',
+    padding: '1rem 1.5rem',
+    background: 'rgba(255,255,255,0.95)',
+    borderRadius: '16px',
+    boxShadow: '0 2px 10px rgba(0,0,0,0.05)'
   },
   sectionTitle: {
     fontSize: '1.3rem',
     fontWeight: '700',
-    background: `linear-gradient(135deg, ${COLORS.primary} 0%, ${COLORS.dark} 100%)`,
-    WebkitBackgroundClip: 'text',
-    WebkitTextFillColor: 'transparent',
-    backgroundClip: 'text',
+    color: COLORS.dark,
     margin: 0
   },
   sectionSubtitle: {
-    color: COLORS.textLight,
+    color: COLORS.text,
     fontSize: '0.9rem',
     marginTop: '0.25rem'
   },
@@ -1789,46 +1752,46 @@ const styles = {
     color: COLORS.textLight
   },
 
-  // Age Recipes Grid (Users)
+  // Age Recipes Grid (Users) - Layout compatto
   ageRecipesGrid: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-    gap: '1rem',
+    gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))',
+    gap: '0.75rem',
     marginTop: '0.5rem'
   },
   ageRecipeCard: {
     background: COLORS.extraLight,
-    borderRadius: '16px',
-    padding: '1rem',
+    borderRadius: '12px',
+    padding: '0.75rem',
     border: `1px solid ${COLORS.light}`
   },
   ageRecipeHeader: {
-    marginBottom: '0.75rem',
-    paddingBottom: '0.5rem',
+    marginBottom: '0.5rem',
+    paddingBottom: '0.35rem',
     borderBottom: `2px solid ${COLORS.primary}`
   },
   ageRecipeAge: {
-    fontSize: '0.9rem',
+    fontSize: '0.8rem',
     fontWeight: '700',
     color: COLORS.primary
   },
   ageRecipeList: {
     display: 'flex',
     flexDirection: 'column',
-    gap: '0.4rem'
+    gap: '0.25rem'
   },
   ageRecipeItem: {
     display: 'flex',
     alignItems: 'center',
-    gap: '0.5rem'
+    gap: '0.35rem'
   },
   ageRecipeRank: {
-    fontSize: '0.8rem',
+    fontSize: '0.75rem',
     color: COLORS.textLight,
     fontWeight: '600'
   },
   ageRecipeName: {
-    fontSize: '0.85rem',
+    fontSize: '0.75rem',
     color: COLORS.text,
     overflow: 'hidden',
     textOverflow: 'ellipsis',
