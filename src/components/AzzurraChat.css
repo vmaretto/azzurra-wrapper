@@ -465,11 +465,10 @@
 
   .chat-input-wrapper {
     margin-bottom: 12px;
-    padding: 4px 4px 4px 15px;
   }
 
   .chat-text-input {
-    height: 36px;
+    height: 80px;
     font-size: 0.95rem;
   }
 
@@ -553,11 +552,10 @@
 
   .chat-input-wrapper {
     margin-bottom: 20px;
-    padding: 8px 8px 8px 25px;
   }
 
   .chat-text-input {
-    height: 50px;
+    height: 120px;
     font-size: 1.1rem;
   }
 
