@@ -23,7 +23,9 @@
       "Bash(file:*)",
       "Bash(curl:*)",
       "Bash(ls:*)",
-      "Bash(node:*)"
+      "Bash(node:*)",
+      "Bash(vercel ls:*)",
+      "Bash(npx vercel:*)"
     ]
   }
 }

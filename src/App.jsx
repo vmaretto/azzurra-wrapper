@@ -6,9 +6,18 @@ import Survey from './components/Survey.jsx';
 import Dashboard from './pages/Dashboard.jsx';
 
 export default function App() {
-  const [step, setStep] = useState('welcome');
-  const [profile, setProfile] = useState(null);
-  const [startTime, setStartTime] = useState(null);
+  // Check for direct mode (skip welcome and form)
+  const urlParams = new URLSearchParams(window.location.search);
+  const isDirectMode = urlParams.get('direct') === 'true';
+
+  const [step, setStep] = useState(isDirectMode ? 'azzurra' : 'welcome');
+  const [profile, setProfile] = useState(isDirectMode ? {
+    fasciaEta: 'Non specificato',
+    sesso: 'Non specificato',
+    rapportoCibo: 'Curioso',
+    region: 'Non specificato'
+  } : null);
+  const [startTime, setStartTime] = useState(isDirectMode ? Date.now() : null);
   const [duration, setDuration] = useState(null);
   const [azzurraOutput, setAzzurraOutput] = useState(null);
 
