@@ -412,26 +412,25 @@ function RecipesSection({ curiosities, deepAnalytics }) {
 
   return (
     <div style={styles.section}>
-      {/* Timeline Ricettari - Proporzionale con label alternate */}
+      {/* Timeline Ricettari - Design a CARDS */}
       <div style={styles.chartCard}>
-        <h3 style={styles.chartTitle}>Timeline dei Ricettari (1891 - 2020)</h3>
-        <div style={{...styles.timeline, height: '140px'}}>
-          <div style={{...styles.timelineLine, top: '50%'}} />
-          {timeline.map((t, i) => {
-            const minYear = 1891;
-            const maxYear = 2020;
-            const position = ((t.year - minYear) / (maxYear - minYear)) * 80 + 10;
-            return (
-              <TimelineDot
-                key={i}
-                year={t.year}
-                label={t.label}
-                isActive={i === 0 || i === timeline.length - 1}
-                position={position}
-                labelBelow={i % 2 === 0}
-              />
-            );
-          })}
+        <h3 style={styles.chartTitle}>I Grandi Ricettari Italiani</h3>
+        <div style={styles.timelineCardsWrapper}>
+          <div style={styles.timelineCards}>
+            {timeline.map((t, i) => (
+              <div key={i} style={{
+                ...styles.timelineCard,
+                background: i === 0 || i === timeline.length - 1
+                  ? `linear-gradient(135deg, ${COLORS.extraLight} 0%, ${COLORS.light} 100%)`
+                  : COLORS.extraLight
+              }}>
+                <div style={styles.timelineCardIcon}>📚</div>
+                <div style={styles.timelineCardYear}>{t.year}</div>
+                <div style={styles.timelineCardLabel}>{t.label}</div>
+              </div>
+            ))}
+          </div>
+          <div style={styles.timelineConnector} />
         </div>
       </div>
 
@@ -994,14 +993,15 @@ export default function Dashboard() {
 const styles = {
   container: {
     minHeight: '100vh',
-    background: `url('/pattern-azzurra.png') repeat fixed`,
     backgroundColor: '#f0f4f8',
     fontFamily: '"Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
   },
   header: {
     background: `linear-gradient(135deg, ${COLORS.primary} 0%, ${COLORS.dark} 100%)`,
     padding: '1.5rem 2rem',
-    boxShadow: `0 4px 20px rgba(1, 77, 122, 0.3)`
+    boxShadow: `0 4px 20px rgba(1, 77, 122, 0.3)`,
+    position: 'relative',
+    zIndex: 10
   },
   headerContent: {
     maxWidth: '1400px',
@@ -1084,7 +1084,9 @@ const styles = {
   main: {
     maxWidth: '1400px',
     margin: '0 auto',
-    padding: '2rem'
+    padding: '2rem',
+    background: `url('/pattern-azzurra.png') repeat`,
+    minHeight: 'calc(100vh - 200px)'
   },
   section: {
     display: 'flex',
@@ -1159,46 +1161,49 @@ const styles = {
     color: COLORS.textLight,
     fontSize: '0.85rem'
   },
-  // Timeline
-  timeline: {
+  // Timeline con CARDS
+  timelineCardsWrapper: {
     position: 'relative',
-    height: '100px',
-    margin: '1rem 0'
+    padding: '0.5rem 0 1.5rem 0'
   },
-  timelineLine: {
-    position: 'absolute',
-    top: '2.5rem',
-    left: '10%',
-    right: '10%',
-    height: '3px',
-    background: `linear-gradient(90deg, ${COLORS.primary} 0%, ${COLORS.accent} 100%)`,
-    borderRadius: '2px'
-  },
-  timelineDotContainer: {
+  timelineCards: {
     display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: '0.5rem',
     position: 'relative',
-    zIndex: 1,
-    top: '50%',
-    transform: 'translateX(-50%) translateY(-50%)'
+    zIndex: 1
   },
-  timelineDot: {
-    width: '16px',
-    height: '16px',
-    borderRadius: '50%',
-    border: `3px solid ${COLORS.white}`,
-    boxShadow: `0 2px 8px rgba(0, 0, 0, 0.15)`
+  timelineCard: {
+    flex: 1,
+    textAlign: 'center',
+    padding: '0.75rem 0.5rem',
+    borderRadius: '12px',
+    border: `1px solid ${COLORS.light}`,
+    transition: 'transform 0.2s ease, box-shadow 0.2s ease'
   },
-  timelineYear: {
-    marginTop: '0.75rem',
-    fontSize: '0.9rem',
-    fontWeight: '700',
-    color: COLORS.primary
+  timelineCardIcon: {
+    fontSize: '1.5rem',
+    marginBottom: '0.25rem'
   },
-  timelineLabel: {
-    fontSize: '0.75rem',
-    color: COLORS.textLight
+  timelineCardYear: {
+    fontWeight: 700,
+    color: COLORS.primary,
+    fontSize: '1rem'
+  },
+  timelineCardLabel: {
+    fontSize: '0.7rem',
+    color: COLORS.textLight,
+    marginTop: '0.15rem'
+  },
+  timelineConnector: {
+    height: '3px',
+    background: `linear-gradient(90deg, ${COLORS.primary}, ${COLORS.accent})`,
+    marginTop: '-2rem',
+    marginLeft: '10%',
+    marginRight: '10%',
+    borderRadius: '2px',
+    position: 'relative',
+    zIndex: 0
   },
   // DNA Bars
   dnaContainer: {

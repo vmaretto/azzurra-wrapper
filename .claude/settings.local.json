@@ -22,7 +22,8 @@
       "WebFetch(domain:community.heygen.com)",
       "Bash(file:*)",
       "Bash(curl:*)",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "Bash(node:*)"
     ]
   }
 }
