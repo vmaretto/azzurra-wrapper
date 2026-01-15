@@ -21,7 +21,8 @@
       "Bash(node scripts/import-recipes.js:*)",
       "WebFetch(domain:community.heygen.com)",
       "Bash(file:*)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "Bash(ls:*)"
     ]
   }
 }
