@@ -25,7 +25,8 @@
       "Bash(ls:*)",
       "Bash(node:*)",
       "Bash(vercel ls:*)",
-      "Bash(npx vercel:*)"
+      "Bash(npx vercel:*)",
+      "Bash(grep:*)"
     ]
   }
 }
