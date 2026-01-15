@@ -242,19 +242,15 @@ Se non è chiaro, chiedi gentilmente di specificare.`;
 
     const reply = response.content[0].text;
 
-    // Estrai titoli delle ricette menzionate nella risposta
-    const recipeTitles = relevantRecipes
-      .map(r => r.titolo)
-      .filter(title => reply.toLowerCase().includes(title.toLowerCase()));
-
-    // Per il tracking delle ricette discusse (usato per PDF/QR finale)
-    const uniqueTitles = [...new Set(relevantRecipes.map(r => r.titolo))];
+    // Per il tracking: usa SOLO la ricetta cercata/proposta (non tutte le versioni nel DB)
+    // searchedRecipe è il nome della ricetta che abbiamo effettivamente proposto
+    const recipeTitles = searchedRecipe ? [searchedRecipe] : [];
 
     res.status(200).json({
       reply,
       usage: response.usage,
       recipesFound: relevantRecipes.length,
-      recipeTitles: uniqueTitles,  // Tutte le ricette nel contesto (per tracking)
+      recipeTitles,  // Solo la ricetta proposta (per tracking PDF/QR)
       searchedRecipe
     });
 
