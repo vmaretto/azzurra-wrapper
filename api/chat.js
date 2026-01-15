@@ -83,6 +83,13 @@ ${RICETTE_DATABASE.join(', ')}.
 - Mantieni le risposte concise per il parlato (max 3-4 frasi per turno)
 - Se l'utente chiede genericamente un consiglio, proponi SOLO dolci dal catalogo
 
+## REGOLE SULLE CALORIE E DATI NUTRIZIONALI - IMPORTANTISSIMO
+- Fornisci le calorie SOLO se sono ESPLICITAMENTE presenti nel campo "Calorie" o "scheda_nutrizionale" del contesto ricetta
+- Se le calorie NON sono presenti nel contesto, rispondi: "Per questa versione non ho il dato calorico disponibile"
+- NON INVENTARE MAI numeri di calorie, porzioni o dati nutrizionali
+- NON fare stime o approssimazioni caloriche
+- Se l'utente insiste sulle calorie e non le hai, suggerisci di consultare una tabella nutrizionale online
+
 ## FORMATO RISPOSTA - MOLTO IMPORTANTE
 - NON usare MAI asterischi per indicare azioni o emozioni (esempio: *sorride*, *con entusiasmo*)
 - NON usare MAI formattazione markdown (asterischi, trattini, elenchi puntati, grassetto)
@@ -116,9 +123,10 @@ async function searchRecipes(query, limit = 10) {
     let results = semanticData || [];
     console.log('🔍 Ricerca semantica trovate:', results.length, 'ricette');
 
-    // 2. Ricerca keyword fallback se semantica trova poco
-    if (results.length < 3) {
-      console.log('🔍 Avvio ricerca keyword fallback...');
+    // 2. Ricerca keyword SEMPRE (non solo come fallback)
+    // Questo garantisce di trovare ricette per nome esatto anche se la semantica fallisce
+    {
+      console.log('🔍 Avvio ricerca keyword...');
 
       // Normalizza query per matching
       const queryLower = query.toLowerCase()
