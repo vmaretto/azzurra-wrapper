@@ -238,16 +238,22 @@ export function useAzzurraChat() {
 
     // Aggiungi messaggio utente alla history
     const userMessage = { role: 'user', content: text };
-    setConversationHistory(prev => [...prev, userMessage]);
+
+    // IMPORTANTE: Costruisci la history COMPLETA includendo il nuovo messaggio
+    // Prima di inviare all'API, così il contesto è sempre aggiornato
+    const updatedHistory = [...conversationHistory, userMessage];
+
+    // Aggiorna lo stato locale
+    setConversationHistory(updatedHistory);
 
     try {
-      // Chiama endpoint chat
+      // Chiama endpoint chat con la history AGGIORNATA
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           message: text,
-          conversationHistory: conversationHistory
+          conversationHistory: updatedHistory  // Usa la history aggiornata!
         })
       });
 
