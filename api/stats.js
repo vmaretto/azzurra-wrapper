@@ -43,7 +43,7 @@ export default async function handler(req, res) {
     `;
     
     const dietaryPrefs = await sql`
-      SELECT 
+      SELECT
         profile->>'dietaryPref' as preference,
         COUNT(*) as count
       FROM azzurra_experiences
@@ -51,13 +51,42 @@ export default async function handler(req, res) {
       GROUP BY profile->>'dietaryPref'
       ORDER BY count DESC
     `;
-    
+
+    // Statistiche per modalità di interazione (Avatar vs Chat)
+    const modeStats = await sql`
+      SELECT
+        COALESCE(interaction_mode, 'avatar') as mode,
+        COUNT(*) as total_sessions,
+        AVG(duration) as avg_duration,
+        AVG(rating) as avg_rating,
+        COUNT(CASE WHEN rating >= 4 THEN 1 END) as high_ratings,
+        COUNT(CASE WHEN feedback IS NOT NULL AND feedback != '' THEN 1 END) as with_feedback
+      FROM azzurra_experiences
+      GROUP BY COALESCE(interaction_mode, 'avatar')
+      ORDER BY total_sessions DESC
+    `;
+
+    // Trend temporale per modalità (ultime 4 settimane)
+    const modeTrend = await sql`
+      SELECT
+        DATE_TRUNC('week', timestamp::timestamp) as week,
+        COALESCE(interaction_mode, 'avatar') as mode,
+        COUNT(*) as sessions,
+        AVG(rating) as avg_rating
+      FROM azzurra_experiences
+      WHERE timestamp::timestamp >= NOW() - INTERVAL '4 weeks'
+      GROUP BY DATE_TRUNC('week', timestamp::timestamp), COALESCE(interaction_mode, 'avatar')
+      ORDER BY week DESC, mode
+    `;
+
     return res.status(200).json({
       success: true,
       stats: stats[0],
       experienceLevels,
       topRegions,
-      dietaryPrefs
+      dietaryPrefs,
+      modeStats,
+      modeTrend
     });
     
   } catch (error) {

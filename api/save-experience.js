@@ -25,17 +25,18 @@ export default async function handler(req, res) {
 
     const sql = neon(process.env.DATABASE_URL || process.env.POSTGRES_DATABASE_URL);
 
-    // Ensure rating column exists (one-time migration)
+    // Ensure columns exist (one-time migrations)
     try {
       await sql`ALTER TABLE azzurra_experiences ADD COLUMN IF NOT EXISTS rating INTEGER`;
+      await sql`ALTER TABLE azzurra_experiences ADD COLUMN IF NOT EXISTS interaction_mode VARCHAR(20) DEFAULT 'avatar'`;
     } catch (e) {
-      // Column might already exist or other issue - continue anyway
-      console.log('Rating column migration:', e.message);
+      // Columns might already exist or other issue - continue anyway
+      console.log('Column migration:', e.message);
     }
 
     const result = await sql`
       INSERT INTO azzurra_experiences
-        (timestamp, duration, profile, output, feedback, rating)
+        (timestamp, duration, profile, output, feedback, rating, interaction_mode)
       VALUES
         (
           ${experienceData.timestamp || new Date().toISOString()},
@@ -43,9 +44,10 @@ export default async function handler(req, res) {
           ${JSON.stringify(experienceData.profile)},
           ${experienceData.output ? JSON.stringify(experienceData.output) : null},
           ${experienceData.feedback || null},
-          ${experienceData.rating || null}
+          ${experienceData.rating || null},
+          ${experienceData.interactionMode || 'avatar'}
         )
-      RETURNING id, timestamp
+      RETURNING id, timestamp, interaction_mode
     `;
     
     console.log('Experience saved successfully:', result[0]);

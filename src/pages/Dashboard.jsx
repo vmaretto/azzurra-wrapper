@@ -222,6 +222,11 @@ function OverviewSection({ stats, analytics, deepAnalytics }) {
   const durationVsRating = deepAnalytics?.durationVsRating || [];
   const peakHour = deepAnalytics?.peakQualityHour;
 
+  // Dati per modalità (Avatar vs Chat)
+  const modeStats = stats?.modeStats || [];
+  const avatarStats = modeStats.find(m => m.mode === 'avatar') || {};
+  const chatStats = modeStats.find(m => m.mode === 'chat') || {};
+
   // Calcola insight correlazione durata-rating
   const shortDuration = durationVsRating.find(d => d.durata_categoria?.includes('Breve'));
   const longDuration = durationVsRating.find(d => d.durata_categoria?.includes('Lunga'));
@@ -260,6 +265,95 @@ function OverviewSection({ stats, analytics, deepAnalytics }) {
           delay={0.3}
         />
       </div>
+
+      {/* Confronto Modalità: Avatar vs Chat */}
+      {modeStats.length > 0 && (
+        <div style={styles.chartCard}>
+          <h3 style={styles.chartTitle}>Confronto Modalita: Avatar Video vs Chat Vocale</h3>
+          <p style={styles.chartSubtitle}>Performance delle due modalita di interazione</p>
+          <div style={styles.modeComparisonGrid}>
+            {/* Avatar Card */}
+            <div style={{
+              ...styles.modeComparisonCard,
+              borderTop: '4px solid #e94560'
+            }}>
+              <div style={styles.modeComparisonHeader}>
+                <span style={styles.modeComparisonIcon}>🎬</span>
+                <span style={styles.modeComparisonTitle}>Avatar Video</span>
+              </div>
+              <div style={styles.modeComparisonStats}>
+                <div style={styles.modeComparisonStat}>
+                  <span style={styles.modeComparisonValue}>
+                    {parseInt(avatarStats.total_sessions) || 0}
+                  </span>
+                  <span style={styles.modeComparisonLabel}>sessioni</span>
+                </div>
+                <div style={styles.modeComparisonStat}>
+                  <span style={styles.modeComparisonValue}>
+                    {formatRating(avatarStats.avg_rating)}
+                  </span>
+                  <span style={styles.modeComparisonLabel}>rating</span>
+                </div>
+                <div style={styles.modeComparisonStat}>
+                  <span style={styles.modeComparisonValue}>
+                    {formatDuration(parseFloat(avatarStats.avg_duration))}
+                  </span>
+                  <span style={styles.modeComparisonLabel}>durata</span>
+                </div>
+              </div>
+            </div>
+
+            {/* VS Divider */}
+            <div style={styles.modeVsDivider}>VS</div>
+
+            {/* Chat Card */}
+            <div style={{
+              ...styles.modeComparisonCard,
+              borderTop: '4px solid #667eea'
+            }}>
+              <div style={styles.modeComparisonHeader}>
+                <span style={styles.modeComparisonIcon}>🎤</span>
+                <span style={styles.modeComparisonTitle}>Chat Vocale</span>
+              </div>
+              <div style={styles.modeComparisonStats}>
+                <div style={styles.modeComparisonStat}>
+                  <span style={styles.modeComparisonValue}>
+                    {parseInt(chatStats.total_sessions) || 0}
+                  </span>
+                  <span style={styles.modeComparisonLabel}>sessioni</span>
+                </div>
+                <div style={styles.modeComparisonStat}>
+                  <span style={styles.modeComparisonValue}>
+                    {formatRating(chatStats.avg_rating)}
+                  </span>
+                  <span style={styles.modeComparisonLabel}>rating</span>
+                </div>
+                <div style={styles.modeComparisonStat}>
+                  <span style={styles.modeComparisonValue}>
+                    {formatDuration(parseFloat(chatStats.avg_duration))}
+                  </span>
+                  <span style={styles.modeComparisonLabel}>durata</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Insight sulla modalità migliore */}
+          {avatarStats.avg_rating && chatStats.avg_rating && (
+            <div style={styles.insightBox}>
+              <span style={styles.insightBoxIcon}>💡</span>
+              <span style={styles.insightBoxText}>
+                {parseFloat(chatStats.avg_rating) > parseFloat(avatarStats.avg_rating)
+                  ? `La Chat Vocale ha un rating +${(parseFloat(chatStats.avg_rating) - parseFloat(avatarStats.avg_rating)).toFixed(1)} rispetto all'Avatar`
+                  : parseFloat(avatarStats.avg_rating) > parseFloat(chatStats.avg_rating)
+                    ? `L'Avatar Video ha un rating +${(parseFloat(avatarStats.avg_rating) - parseFloat(chatStats.avg_rating)).toFixed(1)} rispetto alla Chat`
+                    : 'Entrambe le modalita hanno lo stesso rating medio'
+                }
+              </span>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Insights Row */}
       <div style={styles.chartsRow}>
@@ -1841,5 +1935,62 @@ const styles = {
   areaSessions: {
     fontSize: '0.8rem',
     color: COLORS.textLight
+  },
+
+  // === STILI PER CONFRONTO MODALITÀ (Avatar vs Chat) ===
+  modeComparisonGrid: {
+    display: 'grid',
+    gridTemplateColumns: '1fr auto 1fr',
+    gap: '1rem',
+    alignItems: 'center',
+    marginTop: '1rem'
+  },
+  modeComparisonCard: {
+    background: COLORS.extraLight,
+    borderRadius: '16px',
+    padding: '1.25rem',
+    textAlign: 'center'
+  },
+  modeComparisonHeader: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '0.5rem',
+    marginBottom: '1rem'
+  },
+  modeComparisonIcon: {
+    fontSize: '1.5rem'
+  },
+  modeComparisonTitle: {
+    fontSize: '1rem',
+    fontWeight: '700',
+    color: COLORS.text
+  },
+  modeComparisonStats: {
+    display: 'flex',
+    justifyContent: 'space-around',
+    gap: '0.5rem'
+  },
+  modeComparisonStat: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center'
+  },
+  modeComparisonValue: {
+    fontSize: '1.25rem',
+    fontWeight: '700',
+    color: COLORS.primary
+  },
+  modeComparisonLabel: {
+    fontSize: '0.75rem',
+    color: COLORS.textLight,
+    textTransform: 'uppercase',
+    marginTop: '0.25rem'
+  },
+  modeVsDivider: {
+    fontSize: '1.5rem',
+    fontWeight: '800',
+    color: COLORS.textLight,
+    padding: '0 0.5rem'
   }
 };

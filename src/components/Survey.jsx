@@ -9,11 +9,18 @@ import RecipeResults from './RecipeResults.jsx';
  * 
  * Enhanced with improved visual design, success modal, and database integration.
  */
-export default function Survey({ duration, profile, output, onRestart }) {
+export default function Survey({ duration, profile, output, interactionMode, onRestart }) {
   const [feedback, setFeedback] = useState('');
   const [rating, setRating] = useState(0);
   const [showModal, setShowModal] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Label per la modalità di interazione
+  const getModeLabel = () => {
+    if (interactionMode === 'chat') return 'Chat Vocale';
+    if (interactionMode === 'avatar') return 'Avatar Video';
+    return 'Non specificato';
+  };
 
   const handleSubmit = async () => {
     if (rating === 0) {
@@ -21,14 +28,15 @@ export default function Survey({ duration, profile, output, onRestart }) {
       return;
     }
     setIsSubmitting(true);
-    
+
     const result = {
       timestamp: new Date().toISOString(),
       duration,
       profile,
       output,
       rating,
-      feedback
+      feedback,
+      interactionMode: interactionMode || 'avatar' // Default per retrocompatibilità
     };
     
     // Salva in localStorage come backup
@@ -90,6 +98,24 @@ export default function Survey({ duration, profile, output, onRestart }) {
           
           <div className="duration-badge">
             ⏱️ Durata: {formatDuration(duration)}
+          </div>
+
+          {/* Badge modalità interazione */}
+          <div className="mode-badge" style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            padding: '0.5rem 1rem',
+            background: interactionMode === 'chat'
+              ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
+              : 'linear-gradient(135deg, #e94560 0%, #c62828 100%)',
+            color: '#fff',
+            borderRadius: '20px',
+            fontSize: '0.9rem',
+            fontWeight: '500',
+            marginBottom: '1rem'
+          }}>
+            {interactionMode === 'chat' ? '🎤' : '🎬'} {getModeLabel()}
           </div>
 
           {profile && (

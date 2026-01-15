@@ -1,0 +1,219 @@
+/* src/components/ModeSelection.css */
+/* Stili per la schermata di scelta modalità */
+
+.mode-selection-container {
+  width: 100%;
+  min-height: 100vh;
+  background: linear-gradient(180deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+  box-sizing: border-box;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+.mode-selection-header {
+  text-align: center;
+  margin-bottom: 50px;
+}
+
+.mode-logo {
+  width: 120px;
+  height: 120px;
+  object-fit: contain;
+  margin-bottom: 25px;
+  animation: float 3s ease-in-out infinite;
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+
+.mode-title {
+  font-size: 32px;
+  font-weight: 700;
+  color: #fff;
+  margin: 0 0 12px 0;
+}
+
+.mode-subtitle {
+  font-size: 18px;
+  color: rgba(255, 255, 255, 0.7);
+  margin: 0;
+}
+
+/* Opzioni modalità */
+.mode-options {
+  display: flex;
+  gap: 30px;
+  flex-wrap: wrap;
+  justify-content: center;
+  max-width: 900px;
+}
+
+.mode-card {
+  width: 320px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 24px;
+  padding: 35px 30px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  border: 2px solid transparent;
+  position: relative;
+  overflow: hidden;
+  backdrop-filter: blur(10px);
+}
+
+.mode-card:hover {
+  transform: translateY(-8px);
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.mode-card.avatar-mode:hover {
+  border-color: rgba(233, 69, 96, 0.6);
+  box-shadow: 0 20px 50px rgba(233, 69, 96, 0.3);
+}
+
+.mode-card.chat-mode:hover {
+  border-color: rgba(102, 126, 234, 0.6);
+  box-shadow: 0 20px 50px rgba(102, 126, 234, 0.3);
+}
+
+.mode-icon {
+  width: 70px;
+  height: 70px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 25px;
+}
+
+.mode-card.avatar-mode .mode-icon {
+  background: linear-gradient(135deg, #e94560 0%, #c62828 100%);
+}
+
+.mode-card.chat-mode .mode-icon {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.mode-icon svg {
+  width: 36px;
+  height: 36px;
+  color: #fff;
+}
+
+.mode-card-title {
+  font-size: 22px;
+  font-weight: 600;
+  color: #fff;
+  margin: 0 0 15px 0;
+  text-align: center;
+}
+
+.mode-card-description {
+  font-size: 15px;
+  color: rgba(255, 255, 255, 0.75);
+  line-height: 1.6;
+  margin: 0;
+  text-align: center;
+}
+
+/* Badge */
+.mode-card-badge {
+  position: absolute;
+  top: 15px;
+  right: 15px;
+  padding: 6px 14px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.mode-card-badge.premium {
+  background: linear-gradient(135deg, #ffd700 0%, #ff8c00 100%);
+  color: #1a1a2e;
+}
+
+.mode-card-badge.recommended {
+  background: linear-gradient(135deg, #4caf50 0%, #2e7d32 100%);
+  color: #fff;
+}
+
+/* Footer */
+.mode-footer {
+  margin-top: 40px;
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.5);
+  text-align: center;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .mode-options {
+    flex-direction: column;
+  }
+
+  .mode-card {
+    width: 100%;
+    max-width: 350px;
+  }
+
+  .mode-title {
+    font-size: 26px;
+  }
+
+  .mode-logo {
+    width: 100px;
+    height: 100px;
+  }
+}
+
+/* Supporto totem verticale */
+@media (min-height: 1400px) {
+  .mode-logo {
+    width: 180px;
+    height: 180px;
+  }
+
+  .mode-title {
+    font-size: 42px;
+  }
+
+  .mode-subtitle {
+    font-size: 22px;
+  }
+
+  .mode-card {
+    width: 400px;
+    padding: 50px 40px;
+  }
+
+  .mode-icon {
+    width: 100px;
+    height: 100px;
+  }
+
+  .mode-icon svg {
+    width: 50px;
+    height: 50px;
+  }
+
+  .mode-card-title {
+    font-size: 28px;
+  }
+
+  .mode-card-description {
+    font-size: 18px;
+  }
+
+  .mode-card-badge {
+    padding: 10px 20px;
+    font-size: 14px;
+  }
+}
