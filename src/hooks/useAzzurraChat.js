@@ -22,6 +22,14 @@ export function useAzzurraChat() {
   const currentAudioRef = useRef(null);
   const streamRef = useRef(null);
 
+  // REF per mantenere la history sempre aggiornata (evita stale closures)
+  const conversationHistoryRef = useRef(conversationHistory);
+
+  // Sincronizza il ref ogni volta che lo stato cambia
+  useEffect(() => {
+    conversationHistoryRef.current = conversationHistory;
+  }, [conversationHistory]);
+
   // Messaggio di benvenuto
   const WELCOME_MESSAGE = "Ciao sono Azzurra, l'avatar digitale di ECI, l'enciclopedia della Cucina Italiana, messo a punto da CREA, l'ente Italiano di ricerca sull'agroalimentare, con gli esperti di FIB per accompagnarti nell'affascinante mondo dell'alimentazione italiana. Oggi si parte per un viaggio all'insegna della dolcezza! Iniziamo!";
 
@@ -44,8 +52,10 @@ export function useAzzurraChat() {
       // Pronuncia messaggio di benvenuto
       await speakText(WELCOME_MESSAGE);
 
-      // Aggiungi a history
-      setConversationHistory([{ role: 'assistant', content: WELCOME_MESSAGE }]);
+      // Aggiungi a history (sia stato che ref)
+      const welcomeHistory = [{ role: 'assistant', content: WELCOME_MESSAGE }];
+      setConversationHistory(welcomeHistory);
+      conversationHistoryRef.current = welcomeHistory;
 
     } catch (err) {
       console.error('Initialization error:', err);
@@ -239,12 +249,15 @@ export function useAzzurraChat() {
     // Aggiungi messaggio utente alla history
     const userMessage = { role: 'user', content: text };
 
-    // IMPORTANTE: Costruisci la history COMPLETA includendo il nuovo messaggio
-    // Prima di inviare all'API, così il contesto è sempre aggiornato
-    const updatedHistory = [...conversationHistory, userMessage];
+    // USA IL REF per avere sempre il valore aggiornato (evita stale closures!)
+    const currentHistory = conversationHistoryRef.current;
+    const updatedHistory = [...currentHistory, userMessage];
 
-    // Aggiorna lo stato locale
+    // Aggiorna sia lo stato che il ref
     setConversationHistory(updatedHistory);
+    conversationHistoryRef.current = updatedHistory;
+
+    console.log('Sending message with history length:', updatedHistory.length);
 
     try {
       // Chiama endpoint chat con la history AGGIORNATA
@@ -253,7 +266,7 @@ export function useAzzurraChat() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           message: text,
-          conversationHistory: updatedHistory  // Usa la history aggiornata!
+          conversationHistory: updatedHistory
         })
       });
 
@@ -280,7 +293,11 @@ export function useAzzurraChat() {
       // Aggiungi risposta alla history DOPO aver finito di parlare
       // Così evitiamo duplicazione visiva
       const assistantMessage = { role: 'assistant', content: reply };
-      setConversationHistory(prev => [...prev, assistantMessage]);
+      setConversationHistory(prev => {
+        const newHistory = [...prev, assistantMessage];
+        conversationHistoryRef.current = newHistory; // Aggiorna anche il ref!
+        return newHistory;
+      });
 
     } catch (err) {
       console.error('Chat error:', err);
@@ -290,7 +307,7 @@ export function useAzzurraChat() {
       // Messaggio di fallback
       await speakText("Scusami, non ho capito bene. Puoi ripetere?");
     }
-  }, [conversationHistory, speakText]);
+  }, [speakText]); // Usiamo conversationHistoryRef invece di conversationHistory
 
   // Disconnetti e pulisci risorse
   const disconnect = useCallback(() => {
