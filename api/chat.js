@@ -242,16 +242,22 @@ Se non è chiaro, chiedi gentilmente di specificare.`;
 
     const reply = response.content[0].text;
 
-    // Per il tracking: usa SOLO la ricetta cercata/proposta (non tutte le versioni nel DB)
-    // searchedRecipe è il nome della ricetta che abbiamo effettivamente proposto
-    const recipeTitles = searchedRecipe ? [searchedRecipe] : [];
+    // TRACKING ORIGINALE: filtra solo le ricette EFFETTIVAMENTE menzionate nella risposta
+    const allRagTitles = [...new Set(relevantRecipes.map(r => r.titolo))];
+    const replyLower = reply.toLowerCase();
+
+    const recipeTitles = allRagTitles.filter(title => {
+      return replyLower.includes(title.toLowerCase());
+    });
+
+    console.log('RAG trovate:', allRagTitles);
+    console.log('Menzionate nella risposta:', recipeTitles);
 
     res.status(200).json({
       reply,
       usage: response.usage,
       recipesFound: relevantRecipes.length,
-      recipeTitles,  // Solo la ricetta proposta (per tracking PDF/QR)
-      searchedRecipe
+      recipeTitles
     });
 
   } catch (error) {
