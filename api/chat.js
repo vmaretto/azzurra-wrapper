@@ -68,20 +68,52 @@ function isGenericRequest(message) {
   return genericPatterns.some(p => p.test(message));
 }
 
-// Rileva se è una domanda di follow-up che fa riferimento a ricette proposte precedentemente
-function isFollowUpQuestion(message) {
-  const followUpPatterns = [
-    /quello con/i, /quella con/i, /quelli con/i, /quelle con/i,
-    /il più/i, /la più/i, /il meno/i, /la meno/i,
-    /quale (ha|dei|delle|tra)/i, /quali (hanno|dei|delle|tra)/i,
-    /tra questi/i, /tra queste/i, /tra quelli/i, /tra quelle/i,
-    /dei tre/i, /delle tre/i, /il primo/i, /il secondo/i, /il terzo/i,
-    /la prima/i, /la seconda/i, /la terza/i,
-    /meno calorie/i, /più calorie/i, /più leggero/i, /più pesante/i,
-    /più facile/i, /più difficile/i, /più veloce/i, /più lungo/i,
-    /meno ingredienti/i, /più ingredienti/i
-  ];
-  return followUpPatterns.some(p => p.test(message));
+// Rileva se il messaggio menziona esplicitamente una ricetta del catalogo
+function mentionsSpecificRecipe(message) {
+  const msgLower = message.toLowerCase()
+    .replace(/[àáâã]/g, 'a')
+    .replace(/[èéêë]/g, 'e')
+    .replace(/[ìíîï]/g, 'i')
+    .replace(/[òóôõ]/g, 'o')
+    .replace(/[ùúûü]/g, 'u');
+
+  return RICETTE_DATABASE.some(recipe => {
+    const recipeLower = recipe.toLowerCase()
+      .replace(/[àáâã]/g, 'a')
+      .replace(/[èéêë]/g, 'e')
+      .replace(/[ìíîï]/g, 'i')
+      .replace(/[òóôõ]/g, 'o')
+      .replace(/[ùúûü]/g, 'u');
+
+    // Match se il messaggio contiene il nome della ricetta o parole chiave significative
+    return msgLower.includes(recipeLower) ||
+           recipeLower.split(' ').some(word => word.length > 4 && msgLower.includes(word));
+  });
+}
+
+// Rileva se è una domanda di follow-up:
+// - Ci sono ricette proposte attive
+// - Il messaggio NON è una richiesta generica (nuovo suggerimento)
+// - Il messaggio NON menziona esplicitamente un'altra ricetta
+function isFollowUpQuestion(message, proposedRecipes) {
+  // Se non ci sono proposte attive, non può essere un follow-up
+  if (!proposedRecipes || proposedRecipes.length === 0) {
+    return false;
+  }
+
+  // Se è una richiesta generica, vuole nuovi suggerimenti (non è follow-up)
+  if (isGenericRequest(message)) {
+    return false;
+  }
+
+  // Se menziona esplicitamente una ricetta specifica, sta chiedendo quella (non è follow-up)
+  if (mentionsSpecificRecipe(message)) {
+    return false;
+  }
+
+  // Altrimenti, con proposte attive, è probabilmente un follow-up
+  // (sta chiedendo qualcosa sulle ricette proposte)
+  return true;
 }
 
 // System prompt per Azzurra
@@ -379,7 +411,8 @@ export default async function handler(req, res) {
   try {
     // Controlla se è una richiesta generica (suggerimento random)
     const isGeneric = isGenericRequest(message);
-    const isFollowUp = isFollowUpQuestion(message);
+    // Passa proposedRecipes a isFollowUpQuestion per la logica contestuale
+    const isFollowUp = isFollowUpQuestion(message, proposedRecipes);
     let suggerimentiDinamici = '';
     let suggestedRecipesForResponse = []; // Le ricette da tracciare nel frontend
 
