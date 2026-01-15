@@ -407,7 +407,6 @@ Presenta questi dolci in modo naturale e invitante, chiedendo quale interessa al
     }
 
     // Determina cosa cercare nel RAG
-    let searchQuery = message;
     let relevantRecipes = [];
 
     // Se è una domanda follow-up E abbiamo ricette proposte, cerca quelle specifiche
@@ -439,6 +438,14 @@ L'utente sta chiedendo un CONFRONTO tra queste ricette che gli avevi proposto: $
 La domanda "${message}" si riferisce a QUESTE ricette specifiche.
 RISPONDI confrontando SOLO queste ricette, usando i dati nel contesto.
 Se chiede calorie, confronta le calorie di queste ricette specifiche.`;
+    } else if (isGeneric) {
+      // Per richieste generiche, cerca i suggerimenti generati (non il messaggio utente)
+      console.log('🎲 Richiesta generica - cerco i suggerimenti nel RAG:', suggestedRecipesForResponse);
+      for (const recipeName of suggestedRecipesForResponse) {
+        const recipes = await searchRecipes(recipeName, 3);
+        relevantRecipes = [...relevantRecipes, ...recipes];
+      }
+      console.log('🎲 Ricette trovate per suggerimenti:', relevantRecipes.length);
     } else {
       // Ricerca RAG normale
       relevantRecipes = await searchRecipes(message);
@@ -486,7 +493,8 @@ Se chiede calorie, confronta le calorie di queste ricette specifiche.`;
     const mentionsGenericRecipe = /ricetta|ingredienti|procedimento|preparazione|dose|porzioni/i.test(reply);
     const mentionsSpecificDish = /tiramis|torta|biscott|cantucc|panna cotta|profiterol|zabaione|crostata|panettone|pandoro|colomba|cannoli|cassata|sfogliatell|babà|zeppol|strufoli|panforte|ricciarell|cavallucc|brigidini|amaretti|savoiardi|meringh|bignè|frittell|castagnol|chiacchier|cenci|frappe|bugie|galani|ciambelle|bomboloni|mousse|budino|crema|gelato|granita|sorbetto|semifreddo|pizza|calzone|piadina|bruschetta|panzerott|focaccia|pane/i;
 
-    if (relevantRecipes.length === 0 && mentionsSpecificDish.test(reply) && mentionsGenericRecipe) {
+    // Salta validazione "ricetta inventata" per richieste generiche (i suggerimenti sono sempre validi)
+    if (!isGeneric && relevantRecipes.length === 0 && mentionsSpecificDish.test(reply) && mentionsGenericRecipe) {
       // Claude potrebbe aver inventato - forza risposta sicura
       console.warn('⚠️ ATTENZIONE: Claude potrebbe aver inventato una ricetta!');
       reply = "Mi dispiace, non ho informazioni specifiche su questa ricetta nel mio archivio. Posso aiutarti con tanti dolci della tradizione italiana come il tiramisù, i cannoli, la pastiera napoletana o il panettone. Cosa ti piacerebbe scoprire?";
