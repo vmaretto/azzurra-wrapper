@@ -246,16 +246,18 @@ Se non è chiaro, chiedi gentilmente di specificare.`;
 
     const reply = response.content[0].text;
 
-    // TRACKING ORIGINALE: filtra solo le ricette EFFETTIVAMENTE menzionate nella risposta
-    const allRagTitles = [...new Set(relevantRecipes.map(r => r.titolo))];
-    const replyLower = reply.toLowerCase();
+    // TRACKING MIGLIORATO: usa la ricetta cercata (searchedRecipe) come ricetta discussa
+    // Invece di cercare titoli esatti nella risposta, tracciamo la ricetta principale
+    // perché se l'utente chiede del tiramisù e Claude risponde, stanno discutendo del tiramisù
+    let recipeTitles = [];
 
-    const recipeTitles = allRagTitles.filter(title => {
-      return replyLower.includes(title.toLowerCase());
-    });
+    if (searchedRecipe) {
+      // Usa il nome base della ricetta (quello del catalogo), non i titoli RAG dettagliati
+      recipeTitles = [searchedRecipe];
+    }
 
-    console.log('RAG trovate:', allRagTitles);
-    console.log('Menzionate nella risposta:', recipeTitles);
+    console.log('Ricetta cercata:', searchedRecipe);
+    console.log('Ricette tracciate:', recipeTitles);
 
     res.status(200).json({
       reply,
