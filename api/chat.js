@@ -62,9 +62,10 @@ function getMentionedRecipe(message) {
   for (const recipe of RICETTE_DATABASE) {
     const recipeNorm = normalizeText(recipe);
 
-    // Match esatto o parole chiave significative (>4 caratteri)
+    // Match esatto o parole chiave significative (>= 4 caratteri)
+    // Cambiato da > 4 a >= 4 per matchare "pere", "baba", etc.
     if (msgNorm.includes(recipeNorm) ||
-        recipeNorm.split(' ').some(word => word.length > 4 && msgNorm.includes(word))) {
+        recipeNorm.split(' ').some(word => word.length >= 4 && msgNorm.includes(word))) {
       return recipe;
     }
   }
@@ -239,21 +240,21 @@ Se non è chiaro, chiedi gentilmente di specificare.`;
 
     const response = await anthropic.messages.create({
       model: 'claude-3-5-haiku-20241022',
-      max_tokens: 200,
+      max_tokens: 400,
       system: systemPrompt,
       messages: messages
     });
 
     const reply = response.content[0].text;
 
-    // TRACKING MIGLIORATO: usa la ricetta cercata (searchedRecipe) come ricetta discussa
-    // Invece di cercare titoli esatti nella risposta, tracciamo la ricetta principale
-    // perché se l'utente chiede del tiramisù e Claude risponde, stanno discutendo del tiramisù
+    // TRACKING MIGLIORATO: traccia SOLO ricette esplicitamente richieste dall'utente
+    // NON tracciare ricette suggerite casualmente per richieste generiche
     let recipeTitles = [];
 
-    if (searchedRecipe) {
-      // Usa il nome base della ricetta (quello del catalogo), non i titoli RAG dettagliati
-      recipeTitles = [searchedRecipe];
+    if (mentionedRecipe) {
+      // Traccia SOLO se l'utente ha menzionato esplicitamente una ricetta
+      // Le ricette suggerite random per richieste generiche NON vengono tracciate
+      recipeTitles = [mentionedRecipe];
     }
 
     console.log('Ricetta cercata:', searchedRecipe);
