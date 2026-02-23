@@ -72,25 +72,26 @@ function getMentionedRecipe(message) {
   return null;
 }
 
+// Mappa nomi comuni -> nomi esatti nel database
+const RICETTARI_MAP = {
+  'accademia': 'Accademia Italiana Della Cucina',
+  'cucchiaio': 'Il Cucchiaio D\'Argento',
+  'argento': 'Il Cucchiaio D\'Argento',
+  'talismano': 'Il talismano della felicit',
+  'artusi': 'La Scienza in Cucina',
+  'scienza in cucina': 'La Scienza in Cucina',
+  'marchesi': 'Gualtiero Marchesi',
+  'gualtiero': 'Gualtiero Marchesi',
+  'crea': 'CREA'
+};
+
 // Rileva se l'utente sta chiedendo un ricettario specifico
 function getMentionedRicettario(message) {
   const msgNorm = normalizeText(message);
-  const ricettari = [
-    'Accademia Italiana della Cucina',
-    'Il Cucchiaio d\'Argento',
-    'Cucchiaio d\'Argento',
-    'Il talismano della felicità',
-    'Talismano',
-    'La Scienza in Cucina',
-    'Artusi',
-    'Gualtiero Marchesi',
-    'Marchesi',
-    'CREA'
-  ];
   
-  for (const ric of ricettari) {
-    if (msgNorm.includes(normalizeText(ric))) {
-      return ric;
+  for (const [key, value] of Object.entries(RICETTARI_MAP)) {
+    if (msgNorm.includes(key)) {
+      return value;
     }
   }
   return null;
