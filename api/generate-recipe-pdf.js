@@ -244,25 +244,21 @@ export default async function handler(req, res) {
     if (discussedRecipes && discussedRecipes.length > 0) {
       console.log('Usando ricette tracciate dal RAG:', discussedRecipes);
 
-      // Recupera dettagli completi delle ricette per titolo
-      const { data: recipeData, error: recipeError } = await supabase
-        .from('ricette')
-        .select('titolo, famiglia, ricettario, anno, ingredienti, procedimento, scheda_antropologica, calorie, n_persone')
-        .in('titolo', discussedRecipes)
-        .order('titolo')
-        .order('anno');
+      // Per ogni ricetta discussa, prendi SOLO UNA versione (la più antica - generalmente Artusi o classica)
+      for (const title of discussedRecipes) {
+        const { data: versions, error: vError } = await supabase
+          .from('ricette')
+          .select('titolo, famiglia, ricettario, anno, ingredienti, procedimento, scheda_antropologica, calorie, n_persone')
+          .ilike('titolo', `%${title}%`)
+          .order('anno', { ascending: true })
+          .limit(1);  // PRENDI SOLO LA PRIMA (più antica)
 
-      if (!recipeError && recipeData) {
-        // Raggruppa per titolo e prendi solo la prima versione di ogni ricetta
-        const seenTitles = new Set();
-        for (const recipe of recipeData) {
-          if (!seenTitles.has(recipe.titolo)) {
-            seenTitles.add(recipe.titolo);
-            recipes.push(recipe);
-          }
+        if (!vError && versions && versions.length > 0) {
+          recipes.push(versions[0]);
+          console.log(`PDF: usando ${versions[0].ricettario} (${versions[0].anno}) per ${title}`);
         }
       }
-      console.log('Ricette recuperate:', recipes.map(r => r.titolo));
+      console.log('Ricette per PDF:', recipes.map(r => `${r.titolo} - ${r.ricettario}`));
     } else {
       // Fallback: estrai ricette con text matching (legacy)
       console.log('Fallback: estrazione ricette da conversazione');
