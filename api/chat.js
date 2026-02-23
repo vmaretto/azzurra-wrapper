@@ -146,6 +146,43 @@ async function searchRecipeByName(recipeName) {
   }
 }
 
+// RICERCA SEMANTICA con embeddings
+async function searchRecipesSemantic(query, matchCount = 5) {
+  if (!supabase || !openai) {
+    console.log('⚠️ Supabase o OpenAI non configurati per ricerca semantica');
+    return [];
+  }
+
+  try {
+    console.log('🧠 Ricerca semantica per:', query);
+
+    // 1. Genera embedding della query
+    const embeddingResponse = await openai.embeddings.create({
+      model: 'text-embedding-3-small',
+      input: query
+    });
+    const queryEmbedding = embeddingResponse.data[0].embedding;
+
+    // 2. Chiama la funzione RPC search_ricette
+    const { data, error } = await supabase.rpc('search_ricette', {
+      query_embedding: queryEmbedding,
+      match_count: matchCount
+    });
+
+    if (error) {
+      console.error('Errore ricerca semantica:', error);
+      return [];
+    }
+
+    console.log(`🎯 Trovate ${data?.length || 0} ricette semanticamente simili`);
+    return data || [];
+
+  } catch (err) {
+    console.error('Errore ricerca semantica:', err);
+    return [];
+  }
+}
+
 // Formatta il contesto delle ricette per Claude
 function formatRecipesContext(recipes, recipeName) {
   if (!recipes || recipes.length === 0) {
@@ -207,24 +244,58 @@ export default async function handler(req, res) {
       contextInfo = formatRecipesContext(relevantRecipes, mentionedRecipe);
 
     } else if (isGenericRequest(message)) {
-      // CASO B: Richiesta generica -> suggerisci UNA ricetta random
-      const suggestion = getRandomRecipe();
-      console.log('🎲 Suggerimento random:', suggestion);
-      searchedRecipe = suggestion;
-      relevantRecipes = await searchRecipeByName(suggestion);
+      // CASO B: Richiesta generica -> USA RICERCA SEMANTICA
+      console.log('🧠 Richiesta generica - uso ricerca semantica');
+      
+      // Prova ricerca semantica
+      const semanticResults = await searchRecipesSemantic(message, 3);
+      
+      if (semanticResults.length > 0) {
+        // Usa il risultato più rilevante
+        const topResult = semanticResults[0];
+        searchedRecipe = topResult.titolo;
+        relevantRecipes = semanticResults;
+        
+        contextInfo = `\n\n## SUGGERIMENTO BASATO SU RICERCA SEMANTICA
+Ho trovato ricette correlate alla richiesta dell'utente.
+Ricette trovate (in ordine di rilevanza): ${semanticResults.map(r => r.titolo).join(', ')}.
+Proponi "${topResult.titolo}" in modo naturale, menzionando perché è adatto alla richiesta.
+${formatRecipesContext(semanticResults, 'ricette suggerite')}`;
+      } else {
+        // Fallback a random se semantica fallisce
+        const suggestion = getRandomRecipe();
+        console.log('🎲 Fallback a suggerimento random:', suggestion);
+        searchedRecipe = suggestion;
+        relevantRecipes = await searchRecipeByName(suggestion);
 
-      contextInfo = `\n\n## SUGGERIMENTO PER RICHIESTA GENERICA
+        contextInfo = `\n\n## SUGGERIMENTO PER RICHIESTA GENERICA
 L'utente ha chiesto un consiglio generico. Proponi "${suggestion}" in modo naturale e invitante.
 Presenta brevemente il dolce e le sue origini, poi chiedi se vuole saperne di più.
 ${formatRecipesContext(relevantRecipes, suggestion)}`;
+      }
 
     } else {
-      // CASO C: Nessuna ricetta specifica e non generico -> lascia che Claude gestisca con la history
-      console.log('💬 Domanda di contesto/follow-up');
-      contextInfo = `\n\n## DOMANDA DI CONTESTO
+      // CASO C: Nessuna ricetta specifica - PROVA RICERCA SEMANTICA
+      console.log('🧠 Provo ricerca semantica per domanda generica');
+      
+      const semanticResults = await searchRecipesSemantic(message, 3);
+      
+      if (semanticResults.length > 0 && semanticResults[0].similarity > 0.3) {
+        // Risultati semantici rilevanti trovati
+        relevantRecipes = semanticResults;
+        contextInfo = `\n\n## RICETTE TROVATE CON RICERCA SEMANTICA
+Ho trovato ricette che potrebbero essere correlate alla domanda.
+Ricette: ${semanticResults.map(r => `${r.titolo} (${Math.round(r.similarity * 100)}%)`).join(', ')}.
+Usa queste informazioni se pertinenti alla domanda dell'utente.
+${formatRecipesContext(semanticResults, 'ricette correlate')}`;
+      } else {
+        // Nessun risultato rilevante -> domanda di contesto
+        console.log('💬 Domanda di contesto/follow-up');
+        contextInfo = `\n\n## DOMANDA DI CONTESTO
 L'utente sta facendo una domanda che si riferisce alla conversazione precedente.
 Usa la cronologia dei messaggi per capire di quale ricetta sta parlando.
 Se non è chiaro, chiedi gentilmente di specificare.`;
+      }
     }
 
     // Costruisci system prompt
