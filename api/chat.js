@@ -239,7 +239,7 @@ Se non è chiaro, chiedi gentilmente di specificare.`;
     console.log('📤 Invio a Claude con', messages.length, 'messaggi');
 
     const response = await anthropic.messages.create({
-      model: 'claude-haiku-4-5-20250218',
+      model: 'claude-haiku-4-5-20251001',
       max_tokens: 400,
       system: systemPrompt,
       messages: messages
