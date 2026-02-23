@@ -72,6 +72,62 @@ function getMentionedRecipe(message) {
   return null;
 }
 
+// Rileva se l'utente sta chiedendo un ricettario specifico
+function getMentionedRicettario(message) {
+  const msgNorm = normalizeText(message);
+  const ricettari = [
+    'Accademia Italiana della Cucina',
+    'Il Cucchiaio d\'Argento',
+    'Cucchiaio d\'Argento',
+    'Il talismano della felicità',
+    'Talismano',
+    'La Scienza in Cucina',
+    'Artusi',
+    'Gualtiero Marchesi',
+    'Marchesi',
+    'CREA'
+  ];
+  
+  for (const ric of ricettari) {
+    if (msgNorm.includes(normalizeText(ric))) {
+      return ric;
+    }
+  }
+  return null;
+}
+
+// Cerca ricetta per titolo E ricettario specifico
+async function searchRecipeByNameAndRicettario(recipeName, ricettario) {
+  if (!supabase) return [];
+
+  try {
+    console.log('🔍 Cerco ricetta:', recipeName, 'da ricettario:', ricettario);
+
+    let query = supabase
+      .from('ricette')
+      .select('*')
+      .ilike('titolo', `%${recipeName}%`);
+    
+    if (ricettario) {
+      query = query.ilike('ricettario', `%${ricettario}%`);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      console.error('Errore Supabase:', error);
+      return [];
+    }
+
+    console.log(`✅ Trovate ${data?.length || 0} versioni`);
+    return data || [];
+
+  } catch (err) {
+    console.error('Errore ricerca:', err);
+    return [];
+  }
+}
+
 // Rileva se la richiesta è generica
 function isGenericRequest(message) {
   const genericPatterns = [
@@ -233,10 +289,39 @@ export default async function handler(req, res) {
     let contextInfo = '';
     let searchedRecipe = null;
 
+    // 0. Controlla se menziona un ricettario specifico (follow-up)
+    const mentionedRicettario = getMentionedRicettario(message);
+    
+    // Estrai la ricetta dalla conversation history se non è nel messaggio
+    let recipeFromHistory = null;
+    if (conversationHistory.length > 0) {
+      for (const msg of conversationHistory) {
+        const recipe = getMentionedRecipe(msg.content);
+        if (recipe) recipeFromHistory = recipe;
+      }
+    }
+
     // 1. Controlla se menziona una ricetta specifica
     const mentionedRecipe = getMentionedRecipe(message);
 
-    if (mentionedRecipe) {
+    if (mentionedRicettario && recipeFromHistory) {
+      // CASO 0: Utente chiede un ricettario specifico per una ricetta discussa
+      console.log('📚 Ricettario specifico:', mentionedRicettario, 'per:', recipeFromHistory);
+      searchedRecipe = recipeFromHistory;
+      relevantRecipes = await searchRecipeByNameAndRicettario(recipeFromHistory, mentionedRicettario);
+      
+      if (relevantRecipes.length > 0) {
+        contextInfo = `\n\n## VERSIONE SPECIFICA RICHIESTA
+L'utente ha chiesto la versione di "${recipeFromHistory}" dal ricettario "${mentionedRicettario}".
+FORNISCI GLI INGREDIENTI E IL PROCEDIMENTO COMPLETO di questa versione specifica.
+${formatRecipesContext(relevantRecipes, recipeFromHistory)}`;
+      } else {
+        contextInfo = `\n\n## RICETTARIO NON TROVATO
+Non ho trovato la versione di "${recipeFromHistory}" da "${mentionedRicettario}".
+Proponi le versioni disponibili.`;
+      }
+
+    } else if (mentionedRecipe) {
       // CASO A: Ricetta specifica menzionata -> cerca SOLO quella
       console.log('📌 Ricetta specifica:', mentionedRecipe);
       searchedRecipe = mentionedRecipe;
