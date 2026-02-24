@@ -208,10 +208,11 @@ async function searchRecipeByName(recipeName) {
     }
 
     // Filtra per assicurarsi che siano SOLO versioni della ricetta richiesta
+    // Usa searchName (già normalizzato e troncato) per il confronto
     const filtered = data.filter(r => {
-      const titleNorm = normalizeText(r.titolo);
-      const queryNorm = normalizeText(recipeName);
-      return titleNorm.includes(queryNorm) || queryNorm.includes(titleNorm);
+      // Rimuovi caratteri non-ASCII dal titolo DB (gestisce encoding corrotto)
+      const titleClean = r.titolo.replace(/[^\x00-\x7F]/g, '').toLowerCase();
+      return titleClean.includes(searchName) || searchName.includes(titleClean);
     });
 
     console.log(`✅ Trovate ${filtered.length} versioni di "${recipeName}"`);
