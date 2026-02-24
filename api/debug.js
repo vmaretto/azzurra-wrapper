@@ -68,7 +68,21 @@ export default async function handler(req, res) {
     const recipeNameNorm = normalizeText(recipeFromHistory);
     const ricettarioNorm = normalizeText(mentionedRicettario);
     
-    const { data, error } = await supabase
+    // Test 1: solo ricettario
+    const { data: d1 } = await supabase
+      .from('ricette')
+      .select('titolo, ricettario')
+      .ilike('ricettario', `%cucchiaio%`)
+      .limit(2);
+    
+    // Test 2: solo titolo
+    const { data: d2 } = await supabase
+      .from('ricette')
+      .select('titolo, ricettario')
+      .ilike('titolo', `%tiramis%`);
+    
+    // Test 3: entrambi
+    const { data: d3, error } = await supabase
       .from('ricette')
       .select('titolo, ricettario')
       .ilike('ricettario', `%${ricettarioNorm}%`)
@@ -77,9 +91,10 @@ export default async function handler(req, res) {
     supabaseTest = { 
       recipeNameNorm, 
       ricettarioNorm, 
-      results: data, 
-      error,
-      supabaseUrl: supabaseUrl ? 'set' : 'missing'
+      test1_onlyRicettario: d1,
+      test2_onlyTitolo: d2,
+      test3_both: d3,
+      error
     };
   }
   
