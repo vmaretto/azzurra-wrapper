@@ -1,5 +1,13 @@
 // api/debug.js - Endpoint di debug temporaneo
 
+import { createClient } from '@supabase/supabase-js';
+
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseKey = process.env.SUPABASE_ANON_KEY;
+const supabase = supabaseUrl && supabaseKey
+  ? createClient(supabaseUrl, supabaseKey)
+  : null;
+
 const RICETTE_DATABASE = ['Tiramisù', 'Zabaione', 'Cassata siciliana', 'Cannoli'];
 
 function normalizeText(text) {
@@ -54,6 +62,27 @@ export default async function handler(req, res) {
   
   const mentionedRecipe = getMentionedRecipe(message);
   
+  // Test diretto Supabase
+  let supabaseTest = null;
+  if (supabase && recipeFromHistory && mentionedRicettario) {
+    const recipeNameNorm = normalizeText(recipeFromHistory);
+    const ricettarioNorm = normalizeText(mentionedRicettario);
+    
+    const { data, error } = await supabase
+      .from('ricette')
+      .select('titolo, ricettario')
+      .ilike('ricettario', `%${ricettarioNorm}%`)
+      .ilike('titolo', `%${recipeNameNorm}%`);
+    
+    supabaseTest = { 
+      recipeNameNorm, 
+      ricettarioNorm, 
+      results: data, 
+      error,
+      supabaseUrl: supabaseUrl ? 'set' : 'missing'
+    };
+  }
+  
   return res.json({
     message,
     messageNormalized: normalizeText(message),
@@ -61,6 +90,7 @@ export default async function handler(req, res) {
     mentionedRicettario,
     recipeFromHistory,
     mentionedRecipe,
-    wouldEnterCase0: !!(mentionedRicettario && recipeFromHistory)
+    wouldEnterCase0: !!(mentionedRicettario && recipeFromHistory),
+    supabaseTest
   });
 }
