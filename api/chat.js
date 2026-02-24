@@ -102,11 +102,12 @@ async function searchRecipeByNameAndRicettario(recipeName, ricettario) {
   if (!supabase) return [];
 
   try {
-    // Normalizza i parametri in minuscolo per la ricerca case-insensitive
-    const recipeNameLower = recipeName.toLowerCase();
-    const ricettarioLower = ricettario ? ricettario.toLowerCase() : null;
+    // Normalizza i parametri: minuscolo + rimuove accenti
+    // (necessario perché il DB ha encoding issues con gli accenti)
+    const recipeNameNorm = normalizeText(recipeName);
+    const ricettarioNorm = ricettario ? normalizeText(ricettario) : null;
     
-    console.log('🔍 Cerco ricetta:', recipeNameLower, 'da ricettario:', ricettarioLower);
+    console.log('🔍 Cerco ricetta:', recipeNameNorm, 'da ricettario:', ricettarioNorm);
 
     // IMPORTANTE: filtrare prima per ricettario, poi per titolo
     // (bug del client Supabase JS con ordine inverso)
@@ -114,11 +115,11 @@ async function searchRecipeByNameAndRicettario(recipeName, ricettario) {
       .from('ricette')
       .select('*');
     
-    if (ricettarioLower) {
-      query = query.ilike('ricettario', `%${ricettarioLower}%`);
+    if (ricettarioNorm) {
+      query = query.ilike('ricettario', `%${ricettarioNorm}%`);
     }
     
-    query = query.ilike('titolo', `%${recipeNameLower}%`);
+    query = query.ilike('titolo', `%${recipeNameNorm}%`);
 
     const { data, error } = await query;
 
