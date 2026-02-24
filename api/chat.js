@@ -103,8 +103,14 @@ async function searchRecipeByNameAndRicettario(recipeName, ricettario) {
 
   try {
     // Normalizza i parametri: minuscolo + rimuove accenti
-    const recipeNameNorm = normalizeText(recipeName);
+    let recipeNameNorm = normalizeText(recipeName);
     const ricettarioNorm = ricettario ? normalizeText(ricettario) : null;
+    
+    // WORKAROUND encoding DB: le vocali accentate finali sono troncate (es. "tiramisù" -> "tiramis")
+    // Se finisce con vocale, cerca anche senza l'ultima lettera
+    if (/[aeiou]$/.test(recipeNameNorm)) {
+      recipeNameNorm = recipeNameNorm.slice(0, -1);
+    }
     
     console.log('🔍 Cerco ricetta:', recipeNameNorm, 'da ricettario:', ricettarioNorm);
 
@@ -183,12 +189,18 @@ async function searchRecipeByName(recipeName) {
   if (!supabase) return [];
 
   try {
-    console.log('🔍 Cerco ricetta per nome:', recipeName);
+    // Normalizza e gestisci encoding DB (vocali accentate finali troncate)
+    let searchName = normalizeText(recipeName);
+    if (/[aeiou]$/.test(searchName)) {
+      searchName = searchName.slice(0, -1);
+    }
+    
+    console.log('🔍 Cerco ricetta per nome:', searchName);
 
     const { data, error } = await supabase
       .from('ricette')
       .select('*')
-      .ilike('titolo', `%${recipeName}%`);
+      .ilike('titolo', `%${searchName}%`);
 
     if (error) {
       console.error('Errore Supabase:', error);
