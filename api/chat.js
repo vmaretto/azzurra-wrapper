@@ -103,33 +103,33 @@ async function searchRecipeByNameAndRicettario(recipeName, ricettario) {
 
   try {
     // Normalizza i parametri: minuscolo + rimuove accenti
-    // (necessario perché il DB ha encoding issues con gli accenti)
     const recipeNameNorm = normalizeText(recipeName);
     const ricettarioNorm = ricettario ? normalizeText(ricettario) : null;
     
     console.log('🔍 Cerco ricetta:', recipeNameNorm, 'da ricettario:', ricettarioNorm);
 
-    // IMPORTANTE: filtrare prima per ricettario, poi per titolo
-    // (bug del client Supabase JS con ordine inverso)
-    let query = supabase
+    // WORKAROUND: Due .ilike() in catena non funzionano su Vercel
+    // Quindi cerchiamo solo per titolo e filtriamo lato JS per ricettario
+    const { data, error } = await supabase
       .from('ricette')
-      .select('*');
-    
-    if (ricettarioNorm) {
-      query = query.ilike('ricettario', `%${ricettarioNorm}%`);
-    }
-    
-    query = query.ilike('titolo', `%${recipeNameNorm}%`);
-
-    const { data, error } = await query;
+      .select('*')
+      .ilike('titolo', `%${recipeNameNorm}%`);
 
     if (error) {
       console.error('Errore Supabase:', error);
       return [];
     }
 
-    console.log(`✅ Trovate ${data?.length || 0} versioni`);
-    return data || [];
+    // Filtra lato JS per ricettario
+    let results = data || [];
+    if (ricettarioNorm && results.length > 0) {
+      results = results.filter(r => 
+        r.ricettario && normalizeText(r.ricettario).includes(ricettarioNorm)
+      );
+    }
+
+    console.log(`✅ Trovate ${results.length} versioni`);
+    return results;
 
   } catch (err) {
     console.error('Errore ricerca:', err);
@@ -412,17 +412,20 @@ Se non è chiaro, chiedi gentilmente di specificare.`;
 
     const reply = response.content[0].text;
 
-    // TRACKING MIGLIORATO: traccia SOLO ricette esplicitamente richieste dall'utente
-    // NON tracciare ricette suggerite casualmente per richieste generiche
+    // TRACKING: traccia ricette esplicitamente richieste dall'utente
+    // Include sia ricette menzionate direttamente che quelle da follow-up (ricettario specifico)
     let recipeTitles = [];
 
-    if (mentionedRecipe) {
-      // Traccia SOLO se l'utente ha menzionato esplicitamente una ricetta
-      // Le ricette suggerite random per richieste generiche NON vengono tracciate
+    if (searchedRecipe && relevantRecipes.length > 0) {
+      // Traccia se abbiamo effettivamente trovato e fornito la ricetta
+      recipeTitles = [searchedRecipe];
+    } else if (mentionedRecipe) {
+      // Fallback: traccia la ricetta menzionata anche se non trovata nel DB
       recipeTitles = [mentionedRecipe];
     }
 
     console.log('Ricetta cercata:', searchedRecipe);
+    console.log('Ricette trovate:', relevantRecipes.length);
     console.log('Ricette tracciate:', recipeTitles);
 
     res.status(200).json({
