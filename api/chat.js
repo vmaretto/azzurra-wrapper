@@ -102,16 +102,23 @@ async function searchRecipeByNameAndRicettario(recipeName, ricettario) {
   if (!supabase) return [];
 
   try {
-    console.log('🔍 Cerco ricetta:', recipeName, 'da ricettario:', ricettario);
+    // Normalizza i parametri in minuscolo per la ricerca case-insensitive
+    const recipeNameLower = recipeName.toLowerCase();
+    const ricettarioLower = ricettario ? ricettario.toLowerCase() : null;
+    
+    console.log('🔍 Cerco ricetta:', recipeNameLower, 'da ricettario:', ricettarioLower);
 
+    // IMPORTANTE: filtrare prima per ricettario, poi per titolo
+    // (bug del client Supabase JS con ordine inverso)
     let query = supabase
       .from('ricette')
-      .select('*')
-      .ilike('titolo', `%${recipeName}%`);
+      .select('*');
     
-    if (ricettario) {
-      query = query.ilike('ricettario', `%${ricettario}%`);
+    if (ricettarioLower) {
+      query = query.ilike('ricettario', `%${ricettarioLower}%`);
     }
+    
+    query = query.ilike('titolo', `%${recipeNameLower}%`);
 
     const { data, error } = await query;
 
