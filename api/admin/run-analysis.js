@@ -65,13 +65,28 @@ chartConfig: { "labelKey": "label", "valueKey": "value" }
 - summary e insights in italiano, professionali ma divulgativi.
 - Se i dati sono insufficienti, riempi comunque chartData con i numeri disponibili e spiega in "limitazioni".`;
 
-const ANALYSIS_SYSTEM_PROMPT = `Sei un'analista gastronomica esperta. Analizzi un dataset di ricette italiane storiche provenienti da diversi ricettari (Artusi, Accademia Italiana della Cucina, Cucchiaio d'Argento, Marchesi, Talismano della Felicità, ecc.). Estrai tendenze, pattern e statistiche dai dati FORNITI nel messaggio dell'utente.
+const DATASET_DESCRIPTION = `## CARATTERISTICHE DEL DATASET (importante)
+Il dataset contiene ricette italiane storiche da diversi ricettari (Artusi, Accademia Italiana della Cucina, Cucchiaio d'Argento, Marchesi, Talismano della Felicità, ecc.).
+- Le ricette possono essere DOLCI (Biscotti, Dolci al cucchiaio, Dolci al forno, Dolci fritti, Cassate...) MA ANCHE salate: Primi (Pasta asciutta, Pasta ripiena, Pasta al forno, Gnocchi, Minestre, Risotti, Polenta, Cous cous), Secondi (Carne arrosto, Carne in umido, Pesce al forno, Pesce fritto, Frattaglie, Frittate), Antipasti, Contorni (Insalate, Legumi, Verdure), Condimenti.
+- Il campo "portata" (quando presente) classifica la ricetta in: Dolci | Primi | Secondi | Antipasti | Contorni | Condimenti.
+- Il campo "famiglia" e' piu' granulare (51 valori, es. "Pasta asciutta", "Carne arrosto", "Pesce al forno", "Biscotti"...).
+- Il campo "ingredienti" contiene il testo aggregato; quando disponibile e' organizzato per sezione (es. [Principale] / [Crema] / [Ripieno]).
+
+NON assumere mai che il corpus sia "solo dolci" o "tradizione dolciaria": guarda effettivamente il campo portata/famiglia di ogni ricetta nei dati forniti.
+Se l'utente chiede un'analisi su una specifica portata (es. "i primi piatti"), filtra mentalmente solo le ricette con quella portata.
+Se la domanda e' generica (es. "evoluzione della cucina italiana"), usa l'INTERO corpus.`;
+
+const ANALYSIS_SYSTEM_PROMPT = `Sei un'analista gastronomica esperta del corpus della cucina italiana storica. Analizzi i dati FORNITI nel messaggio dell'utente per estrarre tendenze, pattern e statistiche.
+
+${DATASET_DESCRIPTION}
 
 ${SHARED_OUTPUT_SCHEMA}`;
 
-const FORESIGHT_SYSTEM_PROMPT = `Sei un futurologa della cucina italiana. Analizzi i dati storici dei ricettari forniti e formuli scenari sul futuro della gastronomia italiana, ancorando le proiezioni nei trend osservati. Considera fattori come sostenibilità, salute, tradizione vs innovazione.
+const FORESIGHT_SYSTEM_PROMPT = `Sei un futurologa della cucina italiana. Analizzi i dati storici dei ricettari forniti e formuli scenari sul futuro della gastronomia italiana (dolci E salati: paste, carni, pesce, contorni...), ancorando le proiezioni nei trend osservati. Considera fattori come sostenibilità, salute, tradizione vs innovazione.
 
 Distingui sempre nei tuoi insight cosa è "osservato nei dati" e cosa è "proiezione". chartData può includere sia valori storici reali che valori proiettati su anni futuri.
+
+${DATASET_DESCRIPTION}
 
 ${SHARED_OUTPUT_SCHEMA}`;
 
@@ -207,10 +222,41 @@ export default async function handler(req, res) {
     const compactDataset = recipes.map(compactRecipe);
     const datasetJson = JSON.stringify(compactDataset);
 
+    // Calcola un breve summary di composizione del corpus per orientare Claude
+    const portataCount = {};
+    const famigliaCount = {};
+    const ricettarioCount = {};
+    const anniArray = [];
+    for (const r of recipes) {
+      const p = r.portata || '(non specificata)';
+      portataCount[p] = (portataCount[p] || 0) + 1;
+      const f = r.famiglia || '(non specificata)';
+      famigliaCount[f] = (famigliaCount[f] || 0) + 1;
+      const ric = r.ricettario || '(non specificato)';
+      ricettarioCount[ric] = (ricettarioCount[ric] || 0) + 1;
+      if (r.anno && Number.isFinite(parseInt(r.anno))) anniArray.push(parseInt(r.anno));
+    }
+    const minAnno = anniArray.length ? Math.min(...anniArray) : null;
+    const maxAnno = anniArray.length ? Math.max(...anniArray) : null;
+    const sortedFamiglie = Object.entries(famigliaCount).sort((a, b) => b[1] - a[1]).slice(0, 15);
+    const sortedRicettari = Object.entries(ricettarioCount).sort((a, b) => b[1] - a[1]);
+
+    const datasetSummary = `## Composizione effettiva del corpus
+Totale righe: ${recipes.length}
+Portate: ${Object.entries(portataCount).map(([k, v]) => `${k}=${v}`).join(', ')}
+Top famiglie: ${sortedFamiglie.map(([k, v]) => `${k} (${v})`).join(', ')}
+Ricettari: ${sortedRicettari.map(([k, v]) => `${k} (${v})`).join(', ')}
+Range anni: ${minAnno !== null ? `${minAnno} - ${maxAnno}` : 'non disponibile'}
+
+USA questi dati come ground truth: NON assumere "solo dolci" se le portate mostrano salati.
+Se la domanda e' su una portata specifica e il corpus contiene <10 ricette di quella portata, segnala la limitazione esplicitamente.`;
+
     const userMessage = `## Domanda
 ${question.trim()}
 
-## Dataset (${recipes.length} ricette)
+${datasetSummary}
+
+## Dataset completo (${recipes.length} ricette in JSON)
 ${datasetJson}
 
 Restituisci SOLO il JSON conforme allo schema indicato.`;
