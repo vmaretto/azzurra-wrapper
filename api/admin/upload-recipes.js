@@ -15,7 +15,7 @@ import { requireAdmin } from '../_admin-auth.js';
 
 export const config = {
   api: {
-    bodyParser: { sizeLimit: '15mb' }
+    bodyParser: { sizeLimit: '30mb' }
   },
   maxDuration: 60
 };
@@ -103,6 +103,23 @@ async function generateEmbedding(text) {
     input: text.substring(0, 8000)
   });
   return response.data[0].embedding;
+}
+
+// Batch embeddings: il modello accetta array di input.
+// 100 testi per richiesta = ~10x speedup vs chiamate sequenziali.
+async function generateEmbeddingsBatch(texts, batchSize = 100) {
+  const result = [];
+  for (let i = 0; i < texts.length; i += batchSize) {
+    const batch = texts.slice(i, i + batchSize).map(t => (t || '').substring(0, 8000) || ' ');
+    const response = await openai.embeddings.create({
+      model: 'text-embedding-3-small',
+      input: batch
+    });
+    for (const item of response.data) {
+      result.push(item.embedding);
+    }
+  }
+  return result;
 }
 
 function normalizeIdentityKey(titolo, ricettario, anno) {
@@ -284,14 +301,17 @@ export default async function handler(req, res) {
 
   results.recipes = groups.size;
 
-  for (const [, g] of groups) {
-    try {
-      // Costruisci testo ingredienti: priorità a struttura multi-row, fallback a legacy text
-      const ingredientiText = g.ingredientiList.length > 0
-        ? renderIngredientsText(g.ingredientiList)
-        : g.ingredientiTextLegacy;
+  // Fase 1: prepara tutti i record + testi per embedding
+  const groupArray = [...groups.values()];
+  const records = [];
+  const embeddingTexts = [];
 
-      const testoCompleto = `
+  for (const g of groupArray) {
+    const ingredientiText = g.ingredientiList.length > 0
+      ? renderIngredientsText(g.ingredientiList)
+      : g.ingredientiTextLegacy;
+
+    const testoCompleto = `
 Ricetta: ${g.titolo}
 Portata: ${g.portata}
 Famiglia: ${g.famiglia}
@@ -301,37 +321,62 @@ Storia: ${g.scheda_antropologica}
 Note nutrizionali: ${g.scheda_nutrizionale}
       `.trim();
 
-      const embedding = await generateEmbedding(testoCompleto);
+    embeddingTexts.push(testoCompleto);
+    records.push({
+      _g: g,
+      _ingredientiText: ingredientiText,
+      titolo: g.titolo,
+      famiglia: g.famiglia,
+      ricettario: g.ricettario,
+      anno: g.anno,
+      portata: g.portata,
+      procedimento: g.procedimento,
+      ingredienti: ingredientiText,
+      ingredienti_json: g.ingredientiList.length > 0 ? g.ingredientiList : null,
+      scheda_antropologica: g.scheda_antropologica,
+      scheda_nutrizionale: g.scheda_nutrizionale,
+      calorie: g.calorie,
+      n_persone: g.n_persone
+    });
+  }
 
-      const record = {
-        titolo: g.titolo,
-        famiglia: g.famiglia,
-        ricettario: g.ricettario,
-        anno: g.anno,
-        portata: g.portata,
-        procedimento: g.procedimento,
-        ingredienti: ingredientiText,
-        ingredienti_json: g.ingredientiList.length > 0 ? g.ingredientiList : null,
-        scheda_antropologica: g.scheda_antropologica,
-        scheda_nutrizionale: g.scheda_nutrizionale,
-        calorie: g.calorie,
-        n_persone: g.n_persone,
-        embedding
-      };
+  // Fase 2: batch embeddings (100 alla volta)
+  let embeddings;
+  try {
+    embeddings = await generateEmbeddingsBatch(embeddingTexts, 100);
+  } catch (err) {
+    return res.status(500).json({
+      ...results,
+      error: 'Errore generazione embeddings: ' + (err.message || String(err))
+    });
+  }
 
-      const op = await upsertRecipe(record);
-      if (op === 'updated') results.updated++;
-      else results.inserted++;
+  // Fase 3: upsert in parallelo (5 concurrent per non saturare Supabase)
+  const CONCURRENCY = 5;
+  for (let i = 0; i < records.length; i += CONCURRENCY) {
+    const chunk = records.slice(i, i + CONCURRENCY);
+    await Promise.all(chunk.map(async (rec, j) => {
+      const embedding = embeddings[i + j];
+      const { _g, _ingredientiText, ...persistable } = rec;
+      try {
+        const op = await upsertRecipe({ ...persistable, embedding });
+        if (op === 'updated') results.updated++;
+        else results.inserted++;
+      } catch (err) {
+        results.errors++;
+        if (results.errorDetails.length < 100) {
+          results.errorDetails.push({
+            row: _g.firstRowIdx + 2,
+            titolo: _g.titolo,
+            error: err.message || String(err)
+          });
+        }
+      }
+    }));
+  }
 
-      await new Promise(r => setTimeout(r, 80)); // rate limit OpenAI
-    } catch (err) {
-      results.errors++;
-      results.errorDetails.push({
-        row: g.firstRowIdx + 2,
-        titolo: g.titolo,
-        error: err.message || String(err)
-      });
-    }
+  if (results.errors > results.errorDetails.length) {
+    results.errorDetailsTruncated = true;
   }
 
   // Invalida cache whitelist
