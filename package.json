@@ -17,6 +17,7 @@
     "csv-parse": "^6.1.0",
     "csv-parser": "^3.2.0",
     "dotenv": "^17.3.1",
+    "html2canvas": "^1.4.1",
     "openai": "^6.16.0",
     "pdfkit": "^0.17.2",
     "qrcode": "^1.5.4",

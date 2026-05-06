@@ -13,6 +13,7 @@ import {
   Filler
 } from 'chart.js';
 import { Bar, Line, Doughnut } from 'react-chartjs-2';
+import html2canvas from 'html2canvas';
 
 ChartJS.register(
   CategoryScale,
@@ -1082,6 +1083,7 @@ function AnalysesSection() {
   const [loadingList, setLoadingList] = useState(false);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
   const reportChartRef = useRef(null);
+  const reportPanelRef = useRef(null);
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -1196,29 +1198,28 @@ function AnalysesSection() {
     setDownloadingPdf(true);
     setErrorMsg(null);
     try {
-      // Cattura il canvas Chart.js come PNG (se presente)
-      let chartImage = null;
-      const canvas = reportChartRef.current?.querySelector('canvas');
-      if (canvas) {
-        try {
-          chartImage = canvas.toDataURL('image/png');
-        } catch (e) {
-          console.warn('Impossibile catturare il grafico:', e);
-        }
-      }
+      const el = reportPanelRef.current;
+      if (!el) throw new Error('Pannello report non trovato');
+
+      // Cattura il pannello del report ad alta risoluzione (retina-like)
+      const canvas = await html2canvas(el, {
+        scale: 2,
+        backgroundColor: '#ffffff',
+        logging: false,
+        useCORS: true,
+        windowWidth: el.scrollWidth,
+        windowHeight: el.scrollHeight
+      });
+
+      const reportImage = canvas.toDataURL('image/png');
 
       const res = await fetch('/api/admin/export-analysis-pdf', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-admin-password': authPassword },
         body: JSON.stringify({
-          title: result.title,
-          summary: result.summary,
-          insights: result.insights,
-          limitazioni: result.limitazioni,
-          question,
-          type,
-          chartImage,
-          recipesAnalyzed: meta?.recipesAnalyzed
+          reportImage,
+          title: result.title || 'analisi',
+          type
         })
       });
       if (!res.ok) {
@@ -1401,7 +1402,7 @@ function AnalysesSection() {
       {/* Result */}
       {result && (
         <div style={styles.chartCard}>
-          {/* Action bar in cima al report */}
+          {/* Action bar in cima al report (esclusa dal PDF capture) */}
           <div style={analysesStyles.reportActionBar}>
             <div style={analysesStyles.reportActionLeft}>
               {saved ? (
@@ -1419,6 +1420,8 @@ function AnalysesSection() {
             </div>
           </div>
 
+          {/* Pannello catturato dal PDF (escluso action bar) */}
+          <div ref={reportPanelRef} style={{ padding: '0.5rem 0' }}>
           <h2 style={analysesStyles.resultTitle}>{result.title || 'Analisi'}</h2>
           <div style={analysesStyles.resultMeta}>
             {meta?.recipesAnalyzed && <span>📚 {meta.recipesAnalyzed} ricette analizzate</span>}
@@ -1460,6 +1463,7 @@ function AnalysesSection() {
               <strong>⚠ Limitazioni:</strong> {result.limitazioni}
             </div>
           )}
+          </div>
         </div>
       )}
 

@@ -1,42 +1,36 @@
 // api/admin/export-analysis-pdf.js
-// Genera un PDF dell'analisi AI: titolo, domanda, sintesi, insight, grafico, limitazioni.
-// Note: pdfkit usa Helvetica come font default - niente emoji/Unicode complesso.
+// Genera un PDF dell'analisi AI partendo da uno screenshot ad alta risoluzione
+// del pannello report del dashboard (catturato lato client con html2canvas).
+// L'immagine viene scalata alla larghezza pagina e "tilata" su piu' pagine A4
+// con clipping per evitare contenuto tagliato a meta'.
 
 import PDFDocument from 'pdfkit';
 import { requireAdmin } from '../_admin-auth.js';
 
 export const config = {
   api: {
-    bodyParser: { sizeLimit: '10mb' }
+    bodyParser: { sizeLimit: '20mb' } // immagine alta risoluzione: ~3-8MB
   },
   maxDuration: 30
 };
 
 const COLORS = {
   primary: '#016fab',
-  dark: '#014d7a',
-  text: '#333333',
-  textLight: '#666666',
-  accent: '#f4a261',
-  warning: '#7d5e00',
-  warningBg: '#fff8e1'
+  textLight: '#666666'
 };
 
-// pdfkit/Helvetica non supporta emoji o caratteri Unicode esotici (li rende come "&" o quadrati).
-// Li rimpiazziamo con equivalenti ASCII-safe.
-function asciiSafe(s) {
-  if (s === null || s === undefined) return '';
-  return String(s)
-    .replace(/[⚠⚡]/g, '')      // ⚠ ⚡
-    .replace(/[✅❌✔✖]/g, '') // ✅ ❌ ✔ ✖
-    .replace(/[\u{1F300}-\u{1F9FF}]/gu, '')      // emoji
-    .replace(/[☀-➿]/g, '')              // simboli misc
-    .replace(/–|—/g, '-')               // en/em dash
-    .replace(/[‘’]/g, "'")              // smart single quote
-    .replace(/[“”]/g, '"')              // smart double quote
-    .replace(/…/g, '...')                    // ellipsis
-    .replace(/ /g, ' ')                      // nbsp
-    .trim();
+// Estrae width/height dall'header IHDR di un buffer PNG.
+function getPngDimensions(buffer) {
+  if (buffer.length < 24) throw new Error('PNG troppo piccolo');
+  // Verifica signature PNG
+  const sig = buffer.slice(0, 8);
+  if (sig[0] !== 0x89 || sig[1] !== 0x50 || sig[2] !== 0x4E || sig[3] !== 0x47) {
+    throw new Error('Signature PNG non valida');
+  }
+  return {
+    width: buffer.readUInt32BE(16),
+    height: buffer.readUInt32BE(20)
+  };
 }
 
 export default async function handler(req, res) {
@@ -46,23 +40,24 @@ export default async function handler(req, res) {
   if (!requireAdmin(req, res)) return;
 
   const {
+    reportImage,
     title = 'Analisi AI',
-    summary = '',
-    insights = [],
-    limitazioni = '',
-    question = '',
-    type = 'analysis',
-    chartImage = null,
-    recipesAnalyzed = null
+    type = 'analysis'
   } = req.body || {};
 
+  if (!reportImage || typeof reportImage !== 'string' || !reportImage.startsWith('data:image/png;base64,')) {
+    return res.status(400).json({ error: 'reportImage (PNG base64) mancante' });
+  }
+
   try {
+    const imgBuffer = Buffer.from(reportImage.replace(/^data:image\/png;base64,/, ''), 'base64');
+    const { width: imgW, height: imgH } = getPngDimensions(imgBuffer);
+
     const doc = new PDFDocument({
       size: 'A4',
-      margins: { top: 60, bottom: 70, left: 60, right: 60 },
-      bufferPages: true,
+      margin: 0,
       info: {
-        Title: asciiSafe(title),
+        Title: String(title).slice(0, 100),
         Author: 'Azzurra Analytics',
         Subject: type === 'foresight' ? 'Foresight cucina italiana' : 'Analisi ricette'
       }
@@ -73,178 +68,68 @@ export default async function handler(req, res) {
     doc.on('end', () => {
       const buffer = Buffer.concat(chunks);
       res.setHeader('Content-Type', 'application/pdf');
-      const slug = (title || 'analisi').toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 60);
+      const slug = String(title).toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 60) || 'analisi';
       const today = new Date().toISOString().slice(0, 10);
       res.setHeader('Content-Disposition', `attachment; filename="${slug}-${today}.pdf"`);
       res.status(200).send(buffer);
     });
 
+    // A4 in punti: 595 x 842
     const PAGE_W = doc.page.width;
-    const MARGIN = 60;
-    const CONTENT_W = PAGE_W - MARGIN * 2;
+    const PAGE_H = doc.page.height;
+    const HEADER_H = 30;
+    const FOOTER_H = 22;
+    const SIDE_MARGIN = 25;
+    const INNER_W = PAGE_W - SIDE_MARGIN * 2;
+    const CONTENT_AREA_TOP = HEADER_H + 6;
+    const CONTENT_AREA_BOTTOM = PAGE_H - FOOTER_H - 4;
+    const CONTENT_AREA_H = CONTENT_AREA_BOTTOM - CONTENT_AREA_TOP;
 
-    // Bar superiore (header colorato)
-    function drawTopBar() {
+    // Scala l'immagine per riempire la larghezza disponibile
+    const scale = INNER_W / imgW;
+    const scaledImgH = imgH * scale;
+    const numPages = Math.max(1, Math.ceil(scaledImgH / CONTENT_AREA_H));
+
+    function drawHeader() {
       doc.save();
-      doc.rect(0, 0, PAGE_W, 32).fill(COLORS.primary);
-      doc.fillColor('white').font('Helvetica-Bold').fontSize(10)
-        .text('AZZURRA  -  ANALISI AI', MARGIN, 11, { width: CONTENT_W, align: 'left', lineBreak: false });
-      doc.font('Helvetica').fontSize(9)
+      doc.rect(0, 0, PAGE_W, HEADER_H).fill(COLORS.primary);
+      doc.fillColor('white').font('Helvetica-Bold').fontSize(9.5)
+        .text('AZZURRA  -  ANALISI AI', SIDE_MARGIN, 11, { lineBreak: false });
+      doc.font('Helvetica').fontSize(8.5)
         .text(
           new Date().toLocaleDateString('it-IT', { day: '2-digit', month: 'long', year: 'numeric' }),
-          MARGIN, 11,
-          { width: CONTENT_W, align: 'right', lineBreak: false }
+          PAGE_W - SIDE_MARGIN - 200, 11,
+          { width: 200, align: 'right', lineBreak: false }
         );
       doc.restore();
-      doc.x = MARGIN;
-      doc.y = MARGIN;
     }
 
-    drawTopBar();
-    doc.on('pageAdded', drawTopBar);
-
-    // ---- TYPE BADGE ----
-    const typeLabel = type === 'foresight' ? 'FORESIGHT' : 'ANALISI STORICA';
-    const badgeColor = type === 'foresight' ? COLORS.accent : COLORS.primary;
-    doc.fillColor(badgeColor).font('Helvetica-Bold').fontSize(9)
-      .text(typeLabel, MARGIN, doc.y, { width: CONTENT_W, characterSpacing: 1.2 });
-
-    doc.moveDown(0.4);
-
-    // ---- TITOLO ----
-    doc.fillColor(COLORS.dark).font('Helvetica-Bold').fontSize(22)
-      .text(asciiSafe(title), MARGIN, doc.y, { width: CONTENT_W, lineGap: 4 });
-
-    doc.moveDown(0.3);
-
-    // ---- META ----
-    if (recipesAnalyzed) {
-      doc.fillColor(COLORS.textLight).font('Helvetica').fontSize(10)
-        .text(`Basata su ${recipesAnalyzed} ricette del corpus`, MARGIN, doc.y, { width: CONTENT_W });
-      doc.moveDown(0.3);
-    }
-
-    // ---- DOMANDA ----
-    if (question) {
-      doc.moveDown(0.5);
-      doc.fillColor(COLORS.textLight).font('Helvetica-Bold').fontSize(9)
-        .text('DOMANDA', MARGIN, doc.y, { width: CONTENT_W, characterSpacing: 1 });
-      doc.moveDown(0.15);
-      doc.fillColor(COLORS.text).font('Helvetica-Oblique').fontSize(10.5)
-        .text('"' + asciiSafe(question) + '"', MARGIN, doc.y, { width: CONTENT_W, lineGap: 2 });
-    }
-
-    doc.moveDown(0.8);
-
-    // ---- SINTESI ----
-    if (summary) {
-      doc.fillColor(COLORS.primary).font('Helvetica-Bold').fontSize(12)
-        .text('Sintesi', MARGIN, doc.y, { width: CONTENT_W });
-      doc.moveDown(0.3);
-      doc.fillColor(COLORS.text).font('Helvetica').fontSize(10.5)
-        .text(asciiSafe(summary), MARGIN, doc.y, { width: CONTENT_W, lineGap: 3, align: 'justify' });
-      doc.moveDown(0.8);
-    }
-
-    // ---- PUNTI CHIAVE ----
-    if (Array.isArray(insights) && insights.length > 0) {
-      doc.fillColor(COLORS.primary).font('Helvetica-Bold').fontSize(12)
-        .text('Punti chiave', MARGIN, doc.y, { width: CONTENT_W });
-      doc.moveDown(0.4);
-
-      insights.forEach((it, i) => {
-        const safe = asciiSafe(it);
-        if (!safe) return;
-
-        // Stima altezza per decidere page break
-        const estimatedHeight = doc.heightOfString(safe, {
-          width: CONTENT_W - 30,
-          align: 'left'
-        }) + 12;
-        if (doc.y + estimatedHeight > doc.page.height - 80) doc.addPage();
-
-        const startY = doc.y;
-        const num = String(i + 1).padStart(2, '0');
-
-        // Numero a sinistra (block separato, non continued)
-        doc.fillColor(COLORS.primary).font('Helvetica-Bold').fontSize(11)
-          .text(num, MARGIN, startY, { width: 22, lineBreak: false });
-
-        // Testo dell'insight a destra del numero (block separato, larghezza corretta)
-        doc.fillColor(COLORS.text).font('Helvetica').fontSize(10.5)
-          .text(safe, MARGIN + 30, startY, { width: CONTENT_W - 30, lineGap: 2.5 });
-
-        // Doc.y ora è dopo il testo. Aggiungi gap.
-        doc.moveDown(0.4);
-        doc.x = MARGIN;
-      });
-
-      doc.moveDown(0.4);
-    }
-
-    // ---- GRAFICO ----
-    if (chartImage && typeof chartImage === 'string' && chartImage.startsWith('data:image')) {
-      try {
-        const m = chartImage.match(/^data:image\/(png|jpeg);base64,(.+)$/);
-        if (m) {
-          const imgBuffer = Buffer.from(m[2], 'base64');
-
-          // Lo spazio per grafico ~ 320 + titolo + spazio. Se non c'è, nuova pagina.
-          if (doc.y + 360 > doc.page.height - 80) doc.addPage();
-
-          doc.fillColor(COLORS.primary).font('Helvetica-Bold').fontSize(12)
-            .text('Grafico', MARGIN, doc.y, { width: CONTENT_W });
-          doc.moveDown(0.4);
-
-          doc.image(imgBuffer, MARGIN, doc.y, {
-            fit: [CONTENT_W, 320],
-            align: 'center'
-          });
-          doc.y += 330;
-        }
-      } catch (imgErr) {
-        console.error('Errore inclusione chart image:', imgErr);
-      }
-    }
-
-    // ---- LIMITAZIONI ----
-    if (limitazioni) {
-      const safe = asciiSafe(limitazioni);
-      const text = 'Limitazioni: ' + safe;
-      const heightEst = doc.heightOfString(text, { width: CONTENT_W - 30 }) + 24;
-
-      if (doc.y + heightEst > doc.page.height - 80) doc.addPage();
-
-      const startY = doc.y;
+    function drawFooter(pageNum, total) {
       doc.save();
-      doc.rect(MARGIN, startY, CONTENT_W, heightEst).fill(COLORS.warningBg);
-      doc.rect(MARGIN, startY, 4, heightEst).fill(COLORS.accent);
+      doc.fillColor(COLORS.textLight).font('Helvetica').fontSize(7.5)
+        .text(
+          `Pagina ${pageNum} di ${total}  -  Azzurra Analytics  -  Generato il ${new Date().toLocaleString('it-IT')}`,
+          0, PAGE_H - 14,
+          { width: PAGE_W, align: 'center', lineBreak: false }
+        );
+      doc.restore();
+    }
+
+    for (let i = 0; i < numPages; i++) {
+      if (i > 0) doc.addPage();
+
+      drawHeader();
+
+      // Calcola y di posizionamento dell'immagine (con offset negativo per le pagine successive)
+      const imageY = CONTENT_AREA_TOP - i * CONTENT_AREA_H;
+
+      // Clipping della content area per non sovrapporsi a header/footer
+      doc.save();
+      doc.rect(SIDE_MARGIN, CONTENT_AREA_TOP, INNER_W, CONTENT_AREA_H).clip();
+      doc.image(imgBuffer, SIDE_MARGIN, imageY, { width: INNER_W });
       doc.restore();
 
-      doc.fillColor(COLORS.warning).font('Helvetica').fontSize(9.5)
-        .text(text, MARGIN + 16, startY + 10, {
-          width: CONTENT_W - 26,
-          lineGap: 2.5
-        });
-
-      doc.y = startY + heightEst + 8;
-    }
-
-    // ---- FOOTER PAGINAZIONE ----
-    // Loop sulle pagine bufferizzate per scrivere il footer.
-    // Importante: NON usare doc.text() in modo che possa creare nuove pagine.
-    const range = doc.bufferedPageRange();
-    for (let i = 0; i < range.count; i++) {
-      doc.switchToPage(range.start + i);
-
-      // Disabilitiamo lineBreak e usiamo coordinate esplicite per evitare overflow.
-      const footerText = `Pagina ${i + 1} di ${range.count}  -  Azzurra Analytics  -  Generato il ${new Date().toLocaleString('it-IT')}`;
-      doc.fillColor(COLORS.textLight).font('Helvetica').fontSize(8)
-        .text(footerText, MARGIN, doc.page.height - 40, {
-          width: CONTENT_W,
-          align: 'center',
-          lineBreak: false
-        });
+      drawFooter(i + 1, numPages);
     }
 
     doc.end();
