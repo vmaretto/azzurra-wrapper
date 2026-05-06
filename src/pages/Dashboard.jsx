@@ -1767,20 +1767,29 @@ function ManageRecipesSection() {
   };
 
   const downloadSampleCsv = () => {
-    // Esempio multi-row: una riga per ingrediente, recipe-level fields ripetuti
+    // Tracciato record ECI - ordine fisso 16 colonne
+    const header = 'Titolo;Ricettario;Anno;Famiglia;Portata;DifficoltaTempo;Procedimento;Preparazione;NPersoneTxt;IngredientePrincipale;IngredienteSpecifico;Quantita;Um;scheda_antropologica;scheda_nutrizionale;calorie';
+    const recipeFields = 'Tiramisu;Accademia Italiana della Cucina;1985;Dolci al cucchiaio;Dolci;Media 30 min;Sbattere i tuorli con lo zucchero...;{prep};6;{ing_p};{ing_s};{qty};{um};Dolce nato a Treviso negli anni 60;Ricco di proteine;380';
+    const buildRow = (prep, p, s, q, u) =>
+      recipeFields
+        .replace('{prep}', prep)
+        .replace('{ing_p}', p)
+        .replace('{ing_s}', s)
+        .replace('{qty}', q)
+        .replace('{um}', u);
     const sample = [
-      'titolo;ricettario;anno;famiglia;portata;procedimento;scheda_antropologica;scheda_nutrizionale;calorie;n_persone;preparazione;ingrediente_principale;ingrediente_specifico;quantita;um',
-      'Tiramisu;Accademia Italiana della Cucina;1985;Dolci al cucchiaio;Dolci;Sbattere i tuorli con lo zucchero...;Dolce nato a Treviso negli anni 60;Ricco di proteine;380;6;Principale;Mascarpone;;500;g',
-      'Tiramisu;Accademia Italiana della Cucina;1985;Dolci al cucchiaio;Dolci;Sbattere i tuorli con lo zucchero...;Dolce nato a Treviso negli anni 60;Ricco di proteine;380;6;Principale;Savoiardi;;300;g',
-      'Tiramisu;Accademia Italiana della Cucina;1985;Dolci al cucchiaio;Dolci;Sbattere i tuorli con lo zucchero...;Dolce nato a Treviso negli anni 60;Ricco di proteine;380;6;Principale;Caffe;Espresso forte;250;ml',
-      'Tiramisu;Accademia Italiana della Cucina;1985;Dolci al cucchiaio;Dolci;Sbattere i tuorli con lo zucchero...;Dolce nato a Treviso negli anni 60;Ricco di proteine;380;6;Crema;Uova;Tuorli;4;',
-      'Tiramisu;Accademia Italiana della Cucina;1985;Dolci al cucchiaio;Dolci;Sbattere i tuorli con lo zucchero...;Dolce nato a Treviso negli anni 60;Ricco di proteine;380;6;Crema;Zucchero;;100;g'
+      header,
+      buildRow('Principale', 'Mascarpone', '', '500', 'g'),
+      buildRow('Principale', 'Savoiardi', '', '300', 'g'),
+      buildRow('Principale', 'Caffe', 'Espresso forte', '250', 'ml'),
+      buildRow('Crema', 'Uova', 'Tuorli', '4', ''),
+      buildRow('Crema', 'Zucchero', '', '100', 'g')
     ].join('\n');
     const blob = new Blob([sample], { type: 'text/csv;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'ricette-sample.csv';
+    a.download = 'ricette-tracciato-eci.csv';
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -1842,14 +1851,13 @@ function ManageRecipesSection() {
 
       {/* Upload */}
       <div style={manageStyles.card}>
-        <h3 style={manageStyles.cardTitle}>Importa / esporta CSV</h3>
+        <h3 style={manageStyles.cardTitle}>Importa / esporta CSV (tracciato ECI)</h3>
         <p style={manageStyles.cardHelp}>
           <strong>Formato consigliato (multi-row):</strong> una riga per ingrediente, i campi della ricetta vengono ripetuti.<br/>
-          <strong>Colonne ricetta:</strong> <code>titolo</code> (obbligatoria), <code>ricettario</code>, <code>anno</code>, <code>famiglia</code>, <code>portata</code>, <code>procedimento</code>, <code>scheda_antropologica</code>, <code>scheda_nutrizionale</code>, <code>calorie</code>, <code>n_persone</code>.<br/>
-          <strong>Colonne ingrediente:</strong> <code>preparazione</code> (sezione: Principale/Crema/Ripieno/...), <code>ingrediente_principale</code>, <code>ingrediente_specifico</code>, <code>quantita</code>, <code>um</code>.<br/>
+          <strong>Tracciato (16 colonne, separator <code>;</code>):</strong> <code>Titolo</code> (obbligatoria), <code>Ricettario</code>, <code>Anno</code>, <code>Famiglia</code>, <code>Portata</code>, <code>DifficoltaTempo</code>, <code>Procedimento</code>, <code>Preparazione</code> (sezione ingrediente: Principale/Crema/Ripieno/...), <code>NPersoneTxt</code>, <code>IngredientePrincipale</code>, <code>IngredienteSpecifico</code>, <code>Quantita</code>, <code>Um</code>, <code>scheda_antropologica</code>, <code>scheda_nutrizionale</code>, <code>calorie</code>.<br/>
           <strong>Identita':</strong> (titolo + ricettario + anno). Le righe con la stessa tripla vengono raggruppate e formano UNA ricetta. Gli ingredienti vengono salvati anche in forma strutturata (JSON) per round-trip pulito.<br/>
           <strong>Note:</strong> upsert su (titolo, ricettario, anno) — le ricette non presenti nel CSV non vengono toccate. Embeddings rigenerati automaticamente.<br/>
-          <em style={{ color: '#9c2222' }}>Prima del primo upload: esegui la migration SQL in <code>scripts/migrate-portata-ingredienti-json.sql</code> su Supabase per aggiungere le colonne <code>portata</code> e <code>ingredienti_json</code>.</em>
+          <em style={{ color: '#9c2222' }}>Prima del primo upload: esegui le migration SQL <code>migrate-portata-ingredienti-json.sql</code> e <code>migrate-difficolta-tempo.sql</code> (in <code>/scripts</code>) su Supabase.</em>
         </p>
         <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap', marginTop: '0.75rem' }}>
           <input

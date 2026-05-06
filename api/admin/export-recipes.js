@@ -1,7 +1,11 @@
 // api/admin/export-recipes.js
-// Esporta tutte le ricette in formato CSV.
-// Default: multi-row (una riga per ingrediente) se ci sono ingredienti strutturati.
-// ?mode=single forza il formato single-row (una riga per ricetta, ingredienti come testo).
+// Esporta tutte le ricette in formato CSV conforme al TRACCIATO RECORD ECI:
+//   Titolo;Ricettario;Anno;Famiglia;Portata;DifficoltaTempo;Procedimento;Preparazione;
+//   NPersoneTxt;IngredientePrincipale;IngredienteSpecifico;Quantita;Um;
+//   scheda_antropologica;scheda_nutrizionale;calorie
+//
+// Default: multi-row (una riga per ingrediente).
+// ?mode=single forza il formato con un'unica riga per ricetta (campi ingrediente vuoti).
 
 import { createClient } from '@supabase/supabase-js';
 import { requireAdmin } from '../_admin-auth.js';
@@ -12,29 +16,40 @@ const supabase =
     ? createClient(process.env.SUPABASE_URL, supabaseKey)
     : null;
 
-const RECIPE_FIELDS = [
-  'titolo',
-  'ricettario',
-  'anno',
-  'famiglia',
-  'portata',
-  'procedimento',
+// TRACCIATO RECORD ECI - ordine fisso
+const TRACCIATO_HEADERS = [
+  'Titolo',
+  'Ricettario',
+  'Anno',
+  'Famiglia',
+  'Portata',
+  'DifficoltaTempo',
+  'Procedimento',
+  'Preparazione',
+  'NPersoneTxt',
+  'IngredientePrincipale',
+  'IngredienteSpecifico',
+  'Quantita',
+  'Um',
   'scheda_antropologica',
   'scheda_nutrizionale',
-  'calorie',
-  'n_persone'
+  'calorie'
 ];
 
-const SINGLE_ROW_HEADERS = [...RECIPE_FIELDS, 'ingredienti'];
-
-const MULTI_ROW_HEADERS = [
-  ...RECIPE_FIELDS,
-  'preparazione',
-  'ingrediente_principale',
-  'ingrediente_specifico',
-  'quantita',
-  'um'
-];
+// Mapping header CSV -> proprieta' del record DB (per i campi recipe-level)
+const RECIPE_HEADER_TO_DB = {
+  Titolo: 'titolo',
+  Ricettario: 'ricettario',
+  Anno: 'anno',
+  Famiglia: 'famiglia',
+  Portata: 'portata',
+  DifficoltaTempo: 'difficolta_tempo',
+  Procedimento: 'procedimento',
+  NPersoneTxt: 'n_persone',
+  scheda_antropologica: 'scheda_antropologica',
+  scheda_nutrizionale: 'scheda_nutrizionale',
+  calorie: 'calorie'
+};
 
 function csvEscape(value) {
   if (value === null || value === undefined) return '';
@@ -45,8 +60,25 @@ function csvEscape(value) {
   return str;
 }
 
-function toRow(values, headers) {
-  return headers.map(h => csvEscape(values[h])).join(';');
+function buildRow(recipeRow, ingredient) {
+  // recipeRow: oggetto record DB
+  // ingredient: { sezione, principale, specifico, quantita, um } | null
+  return TRACCIATO_HEADERS.map(h => {
+    if (RECIPE_HEADER_TO_DB[h]) {
+      return csvEscape(recipeRow[RECIPE_HEADER_TO_DB[h]]);
+    }
+    if (ingredient) {
+      switch (h) {
+        case 'Preparazione': return csvEscape(ingredient.sezione);
+        case 'IngredientePrincipale': return csvEscape(ingredient.principale);
+        case 'IngredienteSpecifico': return csvEscape(ingredient.specifico);
+        case 'Quantita': return csvEscape(ingredient.quantita);
+        case 'Um': return csvEscape(ingredient.um);
+      }
+    }
+    // single-row mode senza ingredienti strutturati: campi ingrediente vuoti
+    return '';
+  }).join(';');
 }
 
 export default async function handler(req, res) {
@@ -62,9 +94,10 @@ export default async function handler(req, res) {
   const requestedMode = (req.query.mode || '').toLowerCase();
 
   try {
-    // Prova select con tutte le colonne nuove; se la migration non è stata
-    // ancora eseguita, riprova senza portata/ingredienti_json e fallback a single-row.
-    const fullSelect = [...RECIPE_FIELDS, 'ingredienti', 'ingredienti_json'].join(',');
+    // Prova select con tutte le colonne nuove; fallback su schema legacy.
+    const fullSelect = ['titolo', 'ricettario', 'anno', 'famiglia', 'portata',
+      'difficolta_tempo', 'procedimento', 'ingredienti', 'ingredienti_json',
+      'scheda_antropologica', 'scheda_nutrizionale', 'calorie', 'n_persone'].join(',');
     let { data, error } = await supabase
       .from('ricette')
       .select(fullSelect)
@@ -73,70 +106,65 @@ export default async function handler(req, res) {
     let schemaHasNewCols = !error;
 
     if (error) {
-      // Fallback: schema legacy (nessuna portata, nessuna ingredienti_json)
-      console.warn('Schema senza colonne nuove, uso fallback:', error.message);
-      const legacySelect = ['titolo', 'ricettario', 'anno', 'famiglia',
-        'procedimento', 'scheda_antropologica', 'scheda_nutrizionale',
-        'calorie', 'n_persone', 'ingredienti'].join(',');
-      const result = await supabase
-        .from('ricette')
-        .select(legacySelect)
-        .order('titolo', { ascending: true });
-      if (result.error) {
-        console.error('export-recipes error:', result.error);
-        return res.status(500).json({ error: result.error.message });
+      // Fallback: prova senza difficolta_tempo
+      const fallbackSelect = ['titolo', 'ricettario', 'anno', 'famiglia', 'portata',
+        'procedimento', 'ingredienti', 'ingredienti_json',
+        'scheda_antropologica', 'scheda_nutrizionale', 'calorie', 'n_persone'].join(',');
+      let r = await supabase.from('ricette').select(fallbackSelect).order('titolo', { ascending: true });
+
+      if (r.error) {
+        // Fallback ulteriore: legacy senza portata e ingredienti_json
+        const legacySelect = ['titolo', 'ricettario', 'anno', 'famiglia',
+          'procedimento', 'ingredienti', 'scheda_antropologica',
+          'scheda_nutrizionale', 'calorie', 'n_persone'].join(',');
+        r = await supabase.from('ricette').select(legacySelect).order('titolo', { ascending: true });
+        if (r.error) {
+          console.error('export-recipes error:', r.error);
+          return res.status(500).json({ error: r.error.message });
+        }
       }
-      data = result.data;
+      data = r.data;
     }
 
     const rows = data || [];
 
-    // Decide modalità: multi-row se richiesto OR se ci sono ingredienti strutturati
-    const hasStructuredAny = schemaHasNewCols && rows.some(r => Array.isArray(r.ingredienti_json) && r.ingredienti_json.length > 0);
+    // Decide modalita
+    const hasStructuredAny = rows.some(r => Array.isArray(r.ingredienti_json) && r.ingredienti_json.length > 0);
     const useMultiRow = requestedMode === 'multi' || (requestedMode !== 'single' && hasStructuredAny);
 
-    let csv;
-    if (useMultiRow) {
-      const lines = [MULTI_ROW_HEADERS.join(';')];
-      for (const r of rows) {
-        const recipeBase = {};
-        for (const f of RECIPE_FIELDS) recipeBase[f] = r[f];
+    const lines = [TRACCIATO_HEADERS.join(';')];
 
+    if (useMultiRow) {
+      for (const r of rows) {
         const ings = Array.isArray(r.ingredienti_json) ? r.ingredienti_json : [];
         if (ings.length === 0) {
-          // Ricetta legacy senza ingredienti strutturati: una riga con campi ingrediente vuoti
-          // ma includendo `ingredienti` come ingrediente_principale per non perdere informazione
-          lines.push(toRow({
-            ...recipeBase,
-            preparazione: '',
-            ingrediente_principale: r.ingredienti || '',
-            ingrediente_specifico: '',
-            quantita: '',
-            um: ''
-          }, MULTI_ROW_HEADERS));
+          // Ricetta legacy senza ingredienti strutturati: una riga sola con campi ingrediente vuoti
+          // ma proviamo a sfruttare 'ingredienti' come "principale" se esiste.
+          if (r.ingredienti && r.ingredienti.trim()) {
+            lines.push(buildRow(r, {
+              sezione: 'Principale',
+              principale: r.ingredienti,
+              specifico: '',
+              quantita: '',
+              um: ''
+            }));
+          } else {
+            lines.push(buildRow(r, null));
+          }
         } else {
           for (const ing of ings) {
-            lines.push(toRow({
-              ...recipeBase,
-              preparazione: ing.sezione || '',
-              ingrediente_principale: ing.principale || '',
-              ingrediente_specifico: ing.specifico || '',
-              quantita: ing.quantita || '',
-              um: ing.um || ''
-            }, MULTI_ROW_HEADERS));
+            lines.push(buildRow(r, ing));
           }
         }
       }
-      csv = lines.join('\n');
     } else {
-      const lines = [SINGLE_ROW_HEADERS.join(';')];
       for (const r of rows) {
-        const out = {};
-        for (const h of SINGLE_ROW_HEADERS) out[h] = r[h];
-        lines.push(toRow(out, SINGLE_ROW_HEADERS));
+        // single-row: campi ingrediente vuoti (le ricette con ingredienti_json perdono dettaglio)
+        lines.push(buildRow(r, null));
       }
-      csv = lines.join('\n');
     }
+
+    const csv = lines.join('\n');
 
     const today = new Date().toISOString().slice(0, 10);
     const suffix = useMultiRow ? '-multi' : '';

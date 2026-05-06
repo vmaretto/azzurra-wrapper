@@ -66,6 +66,8 @@ function normalizeKey(k) {
     .replace(/^_+|_+$/g, '');
 }
 
+// Alias: il tracciato record ufficiale e' quello del CSV ECI ma accettiamo
+// anche varianti in inglese / nomi alternativi.
 const COLUMN_ALIASES = {
   // recipe-level
   titolo: ['titolo', 'nome', 'title', 'recipe'],
@@ -73,10 +75,11 @@ const COLUMN_ALIASES = {
   anno: ['anno', 'year'],
   famiglia: ['famiglia', 'family', 'category', 'categoria'],
   portata: ['portata', 'course'],
+  difficolta_tempo: ['difficoltatempo', 'difficolta_tempo', 'difficolta', 'difficolta_e_tempo', 'tempo'],
   ingredienti: ['ingredienti', 'ingredients'],
   procedimento: ['procedimento', 'preparation', 'method'],
-  scheda_antropologica: ['scheda_antropologica', 'storia', 'history', 'antropologia'],
-  scheda_nutrizionale: ['scheda_nutrizionale', 'nutrizione', 'nutrition'],
+  scheda_antropologica: ['scheda_antropologica', 'schedaantropologica', 'storia', 'history', 'antropologia'],
+  scheda_nutrizionale: ['scheda_nutrizionale', 'schedanutrizionale', 'nutrizione', 'nutrition'],
   calorie: ['calorie', 'kcal', 'calories'],
   n_persone: ['n_persone', 'npersone', 'npersonetxt', 'persone', 'porzioni', 'servings', 'serves'],
   // per-ingredient (multi-row format)
@@ -283,6 +286,7 @@ export default async function handler(req, res) {
         anno,
         famiglia: colMap.famiglia ? String(row[colMap.famiglia] || '').trim() : '',
         portata: colMap.portata ? String(row[colMap.portata] || '').trim() : '',
+        difficolta_tempo: colMap.difficolta_tempo ? String(row[colMap.difficolta_tempo] || '').trim() : '',
         procedimento: colMap.procedimento ? cleanHtml(row[colMap.procedimento]) : '',
         scheda_antropologica: colMap.scheda_antropologica ? cleanHtml(row[colMap.scheda_antropologica]) : '',
         scheda_nutrizionale: colMap.scheda_nutrizionale ? cleanHtml(row[colMap.scheda_nutrizionale]) : '',
@@ -330,6 +334,7 @@ Note nutrizionali: ${g.scheda_nutrizionale}
       ricettario: g.ricettario,
       anno: g.anno,
       portata: g.portata,
+      difficolta_tempo: g.difficolta_tempo,
       procedimento: g.procedimento,
       ingredienti: ingredientiText,
       ingredienti_json: g.ingredientiList.length > 0 ? g.ingredientiList : null,
