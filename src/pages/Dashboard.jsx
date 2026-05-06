@@ -14,6 +14,7 @@ import {
 } from 'chart.js';
 import { Bar, Line, Doughnut } from 'react-chartjs-2';
 import html2canvas from 'html2canvas';
+import Papa from 'papaparse';
 
 ChartJS.register(
   CategoryScale,
@@ -1670,6 +1671,7 @@ function ManageRecipesSection() {
   const [loadingList, setLoadingList] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadResult, setUploadResult] = useState(null);
+  const [uploadProgress, setUploadProgress] = useState(null);
   const [errMsg, setErrMsg] = useState(null);
   const fileInputRef = useRef(null);
 
@@ -1724,27 +1726,126 @@ function ManageRecipesSection() {
     loadRecipes(search);
   };
 
+  // Upload con chunking client-side: bypassa il limite Vercel di 4.5MB sul body
+  // delle serverless functions. Il CSV viene parsato qui, raggruppato per tripla
+  // (titolo, ricettario, anno), poi inviato a chunk di N ricette ciascuno.
   const handleUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
     setUploading(true);
     setUploadResult(null);
+    setUploadProgress(null);
     setErrMsg(null);
+
     try {
-      const csv = await file.text();
-      const res = await fetch('/api/admin/upload-recipes', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-admin-password': authPassword },
-        body: JSON.stringify({ csv })
+      const text = await file.text();
+
+      // Detect delimiter dalla prima riga
+      const firstLine = text.split('\n', 1)[0] || '';
+      const delimiter = (firstLine.match(/;/g) || []).length >= (firstLine.match(/,/g) || []).length ? ';' : ',';
+
+      const parsed = Papa.parse(text, {
+        header: true,
+        delimiter,
+        skipEmptyLines: true,
+        transformHeader: (h) => h.replace(/^﻿/, '').trim() // strip BOM
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
-      setUploadResult(data);
+
+      const rows = parsed.data || [];
+      if (rows.length === 0) throw new Error('CSV vuoto o non parsabile');
+
+      const headers = parsed.meta.fields || Object.keys(rows[0]);
+      const norm = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '_').replace(/^_+|_+$/g, '');
+      const findCol = (aliases) => headers.find(h => aliases.includes(norm(h)));
+      const colTitolo = findCol(['titolo', 'nome', 'title', 'recipe']);
+      const colRicettario = findCol(['ricettario', 'fonte', 'source', 'cookbook']);
+      const colAnno = findCol(['anno', 'year']);
+
+      if (!colTitolo) {
+        throw new Error('Colonna Titolo non trovata. Header rilevati: ' + headers.join(', '));
+      }
+
+      // Raggruppa righe per (titolo, ricettario, anno)
+      const groups = new Map();
+      for (const r of rows) {
+        const titolo = String(r[colTitolo] || '').trim().toLowerCase();
+        if (!titolo) continue;
+        const ricettario = colRicettario ? String(r[colRicettario] || '').trim().toLowerCase() : '';
+        const anno = colAnno ? String(r[colAnno] || '').trim() : '';
+        const key = `${titolo}||${ricettario}||${anno}`;
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key).push(r);
+      }
+
+      const groupKeys = [...groups.keys()];
+      const totalRecipes = groupKeys.length;
+
+      // Chunk size: 30 ricette uniche per chunk -> body ~1-2MB
+      const CHUNK_SIZE = 30;
+      const chunks = [];
+      for (let i = 0; i < groupKeys.length; i += CHUNK_SIZE) {
+        const slice = groupKeys.slice(i, i + CHUNK_SIZE);
+        const chunkRows = slice.flatMap(k => groups.get(k));
+        chunks.push(chunkRows);
+      }
+
+      // CSV builder per ogni chunk
+      const headerLine = headers.join(';');
+      const csvEsc = (v) => {
+        if (v === null || v === undefined) return '';
+        const s = String(v);
+        if (/[";\n\r]/.test(s)) return '"' + s.replace(/"/g, '""') + '"';
+        return s;
+      };
+      const rowsToCsv = (rs) => [headerLine, ...rs.map(r => headers.map(h => csvEsc(r[h])).join(';'))].join('\n');
+
+      // Invia chunk uno per uno
+      let totals = { inserted: 0, updated: 0, errors: 0, recipes: 0 };
+      const allErrors = [];
+
+      for (let i = 0; i < chunks.length; i++) {
+        setUploadProgress({ current: i + 1, total: chunks.length, recipesDone: i * CHUNK_SIZE });
+
+        const csv = rowsToCsv(chunks[i]);
+        const res = await fetch('/api/admin/upload-recipes', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-admin-password': authPassword },
+          body: JSON.stringify({ csv })
+        });
+
+        let data = {};
+        try { data = await res.json(); } catch { /* response non JSON */ }
+
+        if (!res.ok) {
+          throw new Error(`Chunk ${i + 1}/${chunks.length} fallito: ${data.error || `HTTP ${res.status}`}`);
+        }
+
+        totals.inserted += data.inserted || 0;
+        totals.updated += data.updated || 0;
+        totals.errors += data.errors || 0;
+        totals.recipes += data.recipes || 0;
+        if (Array.isArray(data.errorDetails)) allErrors.push(...data.errorDetails);
+
+        // Pausa breve tra chunk per non saturare embedding rate limits OpenAI
+        if (i < chunks.length - 1) await new Promise(r => setTimeout(r, 800));
+      }
+
+      setUploadResult({
+        mode: `multi-row chunked (${chunks.length} chunk x ${CHUNK_SIZE} ricette)`,
+        total: rows.length,
+        recipes: totals.recipes || totalRecipes,
+        inserted: totals.inserted,
+        updated: totals.updated,
+        errors: totals.errors,
+        errorDetails: allErrors.slice(0, 50),
+        errorDetailsTruncated: allErrors.length > 50
+      });
       await loadRecipes(search);
     } catch (err) {
       setErrMsg('Errore upload: ' + err.message);
     } finally {
       setUploading(false);
+      setUploadProgress(null);
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
@@ -1873,7 +1974,13 @@ function ManageRecipesSection() {
           <button onClick={downloadSampleCsv} style={manageStyles.secondaryBtn}>
             Scarica CSV di esempio
           </button>
-          {uploading && <span style={{ color: COLORS.primary }}>Caricamento in corso (puo richiedere qualche minuto)...</span>}
+          {uploading && (
+            <span style={{ color: COLORS.primary, fontWeight: 600 }}>
+              {uploadProgress
+                ? `Caricamento chunk ${uploadProgress.current} di ${uploadProgress.total}...`
+                : 'Parsing CSV in corso...'}
+            </span>
+          )}
         </div>
 
         {uploadResult && (
