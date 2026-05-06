@@ -1020,6 +1020,29 @@ function ManageRecipesSection() {
     URL.revokeObjectURL(url);
   };
 
+  const downloadCurrentArchive = async () => {
+    setErrMsg(null);
+    try {
+      const res = await fetch('/api/admin/export-recipes', {
+        headers: { 'x-admin-password': authPassword }
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || `HTTP ${res.status}`);
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      const today = new Date().toISOString().slice(0, 10);
+      a.href = url;
+      a.download = `ricette-${today}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setErrMsg('Errore export: ' + err.message);
+    }
+  };
+
   // ---- LOGIN GATE ----
   if (!authenticated) {
     return (
@@ -1054,10 +1077,10 @@ function ManageRecipesSection() {
 
       {/* Upload */}
       <div style={manageStyles.card}>
-        <h3 style={manageStyles.cardTitle}>Importa da CSV</h3>
+        <h3 style={manageStyles.cardTitle}>Importa / esporta CSV</h3>
         <p style={manageStyles.cardHelp}>
-          Colonne: <code>titolo</code> (obbligatoria), <code>ricettario</code>, <code>anno</code>, <code>famiglia</code>, <code>ingredienti</code>, <code>procedimento</code>, <code>scheda_antropologica</code>, <code>scheda_nutrizionale</code>, <code>calorie</code>, <code>n_persone</code>.<br/>
-          Le righe esistenti (stesso titolo + ricettario + anno) vengono aggiornate. Embeddings rigenerati automaticamente.
+          <strong>Colonne:</strong> <code>titolo</code> (obbligatoria), <code>ricettario</code>, <code>anno</code>, <code>famiglia</code>, <code>ingredienti</code>, <code>procedimento</code>, <code>scheda_antropologica</code>, <code>scheda_nutrizionale</code>, <code>calorie</code>, <code>n_persone</code>.<br/>
+          <strong>Comportamento:</strong> chiave di identita' = (titolo + ricettario + anno). Stessa tripla → aggiornata; tripla diversa → nuova riga. Le ricette esistenti non presenti nel CSV non vengono toccate (per cancellare, usa il pulsante Elimina nella tabella). Gli embeddings vengono rigenerati automaticamente.
         </p>
         <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap', marginTop: '0.75rem' }}>
           <input
@@ -1067,6 +1090,9 @@ function ManageRecipesSection() {
             onChange={handleUpload}
             disabled={uploading}
           />
+          <button onClick={downloadCurrentArchive} style={manageStyles.secondaryBtn}>
+            Scarica archivio attuale
+          </button>
           <button onClick={downloadSampleCsv} style={manageStyles.secondaryBtn}>
             Scarica CSV di esempio
           </button>
