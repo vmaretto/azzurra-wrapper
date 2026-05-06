@@ -22,64 +22,58 @@ const supabase =
     ? createClient(process.env.SUPABASE_URL, supabaseKey)
     : null;
 
-const ANALYSIS_SYSTEM_PROMPT = `Sei un'analista esperta di gastronomia italiana e tradizione culinaria.
-Analizzi un dataset di ricette tradizionali italiane provenienti da diversi ricettari storici (Artusi, Accademia Italiana della Cucina, Cucchiaio d'Argento, Marchesi, Talismano della Felicità, ecc.).
+const SHARED_OUTPUT_SCHEMA = `## SCHEMA OUTPUT (rispetta ESATTAMENTE)
+Restituisci SOLO un oggetto JSON conforme a questa struttura — niente testo prima/dopo, niente markdown fence:
 
-Quando ricevi una domanda dell'utente, devi:
-1. Analizzare i dati delle ricette forniti
-2. Estrarre tendenze, pattern, statistiche pertinenti
-3. Restituire un report strutturato in JSON con grafico
-
-REGOLE CRITICHE:
-- Rispondi SEMPRE e SOLO con un oggetto JSON valido (no testo prima o dopo)
-- I numeri devono essere derivati dai dati reali, NON inventati
-- Se i dati non bastano, indica esplicitamente le limitazioni nel campo "limitazioni"
-- Linguaggio professionale ma divulgativo, in italiano
-
-SCHEMA OUTPUT:
 {
-  "title": "Titolo dell'analisi (max 100 caratteri)",
-  "summary": "Sintesi di 2-3 frasi del risultato",
-  "insights": ["Insight 1", "Insight 2", ...],  // 3-5 punti chiave
-  "limitazioni": "Eventuali limiti dei dati (opzionale)",
+  "title": "Titolo breve (max 100 caratteri)",
+  "summary": "Sintesi di 2-3 frasi",
+  "insights": ["punto chiave 1", "punto chiave 2", "punto chiave 3"],
+  "limitazioni": "Note sui limiti dei dati (opzionale, stringa)",
   "chartType": "bar" | "line" | "area" | "pie",
-  "chartData": [
-    { "label": "etichetta x", "Serie1": 12, "Serie2": 34 },
-    ...
-  ],
-  "chartConfig": {
-    "xKey": "label",
-    "series": [
-      { "key": "Serie1", "name": "Nome leggibile 1", "color": "#016fab" },
-      { "key": "Serie2", "name": "Nome leggibile 2", "color": "#90e0ef" }
-    ]
-  }
+  "chartData": [ ...vedi sotto ],
+  "chartConfig": { ...vedi sotto }
 }
 
-I colori disponibili (palette del progetto): #016fab (primary), #014d7a (dark), #00b4d8 (accent), #90e0ef (light), #caf0f8 (extraLight), #f4a261 (arancio), #e76f51 (rosso).
+## REGOLE CRITICHE PER chartData (la violazione spacca la UI)
+- Ogni elemento di chartData DEVE essere un oggetto piatto con SOLO valori PRIMITIVI (string o number).
+- VIETATO mettere oggetti annidati come valori. Es. NO: { "label": "1891", "Burro": { "tipo": "storico", "valore": 45 } }
+- I valori delle serie devono essere NUMERI, non oggetti. Es. SI: { "label": "1891", "Burro": 45, "Olio": 12 }
+- Le label/x devono essere stringhe corte e descrittive (es. "Artusi 1891", non un oggetto).
+- chartData deve avere tra 3 e 30 elementi.
+- Se vuoi distinguere "storico" vs "proiezione" usa una serie separata, non un oggetto annidato.
+  ESEMPIO: { "label": "2030", "Storico": null, "Proiezione": 65 }
 
-Per i grafici a torta usa una sola serie:
-"chartData": [{ "label": "Categoria A", "value": 12 }, ...]
-"chartConfig": { "valueKey": "value", "labelKey": "label" }
-`;
+## chartConfig per bar/line/area
+{
+  "xKey": "label",
+  "series": [
+    { "key": "Burro", "name": "Burro (% ricette)", "color": "#016fab" },
+    { "key": "Olio", "name": "Olio d'oliva (% ricette)", "color": "#f4a261" }
+  ]
+}
 
-const FORESIGHT_SYSTEM_PROMPT = `Sei un futurologa della cucina italiana. Analizzi dati storici sui ricettari tradizionali e formuli previsioni e scenari sul futuro della gastronomia italiana.
+## chartConfig per pie (singola serie)
+chartData: [ { "label": "Artusi", "value": 36 }, { "label": "Accademia", "value": 24 } ]
+chartConfig: { "labelKey": "label", "valueKey": "value" }
 
-Quando ricevi una domanda foresight, devi:
-1. Identificare nei dati le tendenze evolutive (1891 → 2026)
-2. Estrapolare in modo ragionato verso il futuro (3-10 anni)
-3. Considerare fattori esterni (sostenibilita', salute, tradizione vs innovazione)
-4. Restituire scenari plausibili in formato strutturato
+## Palette colori (usa questi)
+#016fab #014d7a #00b4d8 #90e0ef #caf0f8 #f4a261 #e76f51 #2a9d8f #e9c46a
 
-REGOLE CRITICHE:
-- Rispondi SEMPRE e SOLO con un oggetto JSON valido
-- Le previsioni devono essere ancorate nei dati storici osservati
-- Indica chiaramente cosa e' osservato nei dati e cosa e' proiezione
-- Linguaggio chiaro e ispirazionale ma rigoroso
+## ALTRE REGOLE
+- I numeri devono derivare dai dati reali, mai inventati. Se servono percentuali, calcolale.
+- summary e insights in italiano, professionali ma divulgativi.
+- Se i dati sono insufficienti, riempi comunque chartData con i numeri disponibili e spiega in "limitazioni".`;
 
-SCHEMA OUTPUT identico a run-analysis: { title, summary, insights, limitazioni, chartType, chartData, chartConfig }
-- Le insights includono sia trend osservati che proiezioni
-- chartData puo' includere serie storica reale + proiezione futura (es. campo "tipo": "storico" / "proiezione")`;
+const ANALYSIS_SYSTEM_PROMPT = `Sei un'analista gastronomica esperta. Analizzi un dataset di ricette italiane storiche provenienti da diversi ricettari (Artusi, Accademia Italiana della Cucina, Cucchiaio d'Argento, Marchesi, Talismano della Felicità, ecc.). Estrai tendenze, pattern e statistiche dai dati FORNITI nel messaggio dell'utente.
+
+${SHARED_OUTPUT_SCHEMA}`;
+
+const FORESIGHT_SYSTEM_PROMPT = `Sei un futurologa della cucina italiana. Analizzi i dati storici dei ricettari forniti e formuli scenari sul futuro della gastronomia italiana, ancorando le proiezioni nei trend osservati. Considera fattori come sostenibilità, salute, tradizione vs innovazione.
+
+Distingui sempre nei tuoi insight cosa è "osservato nei dati" e cosa è "proiezione". chartData può includere sia valori storici reali che valori proiettati su anni futuri.
+
+${SHARED_OUTPUT_SCHEMA}`;
 
 async function fetchRecipesContext() {
   if (!supabase) return [];
@@ -121,13 +115,64 @@ function tryParseJson(text) {
   // Claude a volte avvolge in ```json ... ``` o aggiunge testo. Estrai il JSON.
   const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/);
   const candidate = fenced ? fenced[1] : text;
-  // Trova primo { e ultimo }
   const first = candidate.indexOf('{');
   const last = candidate.lastIndexOf('}');
   if (first < 0 || last < 0 || last <= first) {
     throw new Error('Risposta AI senza JSON: ' + text.slice(0, 200));
   }
   return JSON.parse(candidate.slice(first, last + 1));
+}
+
+// Sanitizza il payload AI: forza valori primitivi in chartData
+// (Claude a volte mette oggetti annidati che spaccano il render React).
+function sanitizeAnalysisResult(parsed) {
+  if (!parsed || typeof parsed !== 'object') return parsed;
+
+  const result = { ...parsed };
+  if (Array.isArray(result.chartData)) {
+    result.chartData = result.chartData
+      .map(d => {
+        if (!d || typeof d !== 'object') return null;
+        const cleaned = {};
+        for (const [k, v] of Object.entries(d)) {
+          if (v === null || v === undefined) {
+            cleaned[k] = null;
+          } else if (typeof v === 'number' || typeof v === 'boolean') {
+            cleaned[k] = v;
+          } else if (typeof v === 'string') {
+            cleaned[k] = v;
+          } else if (typeof v === 'object') {
+            // valore-oggetto non ammesso: prova a estrarre un numero
+            const numericVal = v.value ?? v.valore ?? v.count ?? v.n ?? v.numero ?? null;
+            if (typeof numericVal === 'number') {
+              cleaned[k] = numericVal;
+            } else {
+              cleaned[k] = null; // skip
+            }
+          } else {
+            cleaned[k] = String(v);
+          }
+        }
+        return cleaned;
+      })
+      .filter(Boolean);
+  }
+
+  // Normalizza insights ad array di stringhe
+  if (Array.isArray(result.insights)) {
+    result.insights = result.insights
+      .map(i => (typeof i === 'string' ? i : (i?.text || i?.testo || JSON.stringify(i))))
+      .filter(Boolean);
+  }
+
+  // Forza title/summary/limitazioni a stringhe
+  for (const k of ['title', 'summary', 'limitazioni']) {
+    if (result[k] != null && typeof result[k] !== 'string') {
+      result[k] = typeof result[k] === 'object' ? JSON.stringify(result[k]) : String(result[k]);
+    }
+  }
+
+  return result;
 }
 
 export default async function handler(req, res) {
@@ -189,9 +234,11 @@ Restituisci SOLO il JSON conforme allo schema indicato.`;
       });
     }
 
+    const sanitized = sanitizeAnalysisResult(parsed);
+
     return res.status(200).json({
       success: true,
-      result: parsed,
+      result: sanitized,
       meta: {
         recipesAnalyzed: recipes.length,
         type,

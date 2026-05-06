@@ -897,6 +897,152 @@ function LoadingState() {
   );
 }
 
+// ----- Stili sezione Analisi AI (allineati al design del Dashboard) -----
+const analysesStyles = {
+  hero: {
+    background: `linear-gradient(135deg, ${COLORS.primary} 0%, ${COLORS.dark} 100%)`,
+    borderRadius: '20px',
+    padding: '1.75rem 2rem',
+    color: 'white',
+    boxShadow: `0 8px 32px rgba(1, 111, 171, 0.25)`,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    flexWrap: 'wrap',
+    gap: '1rem'
+  },
+  heroLeft: { display: 'flex', alignItems: 'center', gap: '1rem' },
+  heroIcon: {
+    width: '52px', height: '52px', borderRadius: '14px',
+    background: 'rgba(255,255,255,0.18)', display: 'flex',
+    alignItems: 'center', justifyContent: 'center', fontSize: '1.6rem'
+  },
+  heroTitle: { margin: 0, fontSize: '1.4rem', fontWeight: 700 },
+  heroSubtitle: { margin: '0.2rem 0 0', fontSize: '0.9rem', opacity: 0.9 },
+  heroLogout: {
+    background: 'rgba(255,255,255,0.18)', color: 'white', border: 'none',
+    padding: '0.5rem 1rem', borderRadius: '10px', cursor: 'pointer', fontSize: '0.85rem'
+  },
+  modeRow: { display: 'flex', gap: '0.5rem', marginTop: '1rem', flexWrap: 'wrap' },
+  modePill: {
+    padding: '0.55rem 1rem', borderRadius: '999px',
+    border: `1px solid ${COLORS.border}`, background: 'white',
+    color: COLORS.text, fontSize: '0.9rem', cursor: 'pointer', fontWeight: 500,
+    display: 'inline-flex', alignItems: 'center', gap: '0.4rem',
+    transition: 'all 0.2s ease'
+  },
+  modePillActive: {
+    padding: '0.55rem 1rem', borderRadius: '999px',
+    background: `linear-gradient(135deg, ${COLORS.primary} 0%, ${COLORS.dark} 100%)`,
+    color: 'white', fontSize: '0.9rem', cursor: 'pointer', fontWeight: 600,
+    border: '1px solid transparent',
+    display: 'inline-flex', alignItems: 'center', gap: '0.4rem',
+    boxShadow: `0 4px 12px rgba(1, 111, 171, 0.25)`
+  },
+  textarea: {
+    width: '100%', padding: '1rem', borderRadius: '14px',
+    border: `1px solid ${COLORS.border}`, fontSize: '0.95rem',
+    fontFamily: 'inherit', boxSizing: 'border-box', resize: 'vertical',
+    minHeight: '90px', background: 'rgba(255,255,255,0.7)'
+  },
+  actionRow: { display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap', marginTop: '1rem' },
+  generateBtn: {
+    padding: '0.85rem 1.6rem',
+    background: `linear-gradient(135deg, ${COLORS.primary} 0%, ${COLORS.dark} 100%)`,
+    color: 'white', border: 'none', borderRadius: '12px',
+    fontSize: '0.95rem', fontWeight: 600, cursor: 'pointer',
+    boxShadow: `0 4px 14px rgba(1, 111, 171, 0.3)`,
+    display: 'inline-flex', alignItems: 'center', gap: '0.5rem'
+  },
+  generateBtnDisabled: {
+    padding: '0.85rem 1.6rem',
+    background: '#ccc', color: '#666', border: 'none',
+    borderRadius: '12px', fontSize: '0.95rem', fontWeight: 600, cursor: 'not-allowed'
+  },
+  saveBtn: {
+    padding: '0.7rem 1.2rem', background: 'white', border: `1px solid ${COLORS.primary}`,
+    color: COLORS.primary, borderRadius: '12px', fontSize: '0.9rem',
+    fontWeight: 600, cursor: 'pointer'
+  },
+  examplesGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
+    gap: '0.75rem', marginTop: '1rem'
+  },
+  exampleCard: {
+    background: 'rgba(255,255,255,0.85)',
+    border: `1px solid ${COLORS.extraLight}`,
+    borderRadius: '14px', padding: '0.85rem 1rem',
+    cursor: 'pointer', textAlign: 'left',
+    fontSize: '0.85rem', color: COLORS.text, lineHeight: 1.5,
+    transition: 'all 0.2s ease',
+    display: 'flex', alignItems: 'flex-start', gap: '0.5rem'
+  },
+  exampleIcon: { fontSize: '1.1rem', flexShrink: 0 },
+  insightsGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+    gap: '0.75rem', marginTop: '1rem'
+  },
+  insightCard: {
+    background: `linear-gradient(135deg, ${COLORS.extraLight} 0%, rgba(255,255,255,0.9) 100%)`,
+    borderLeft: `4px solid ${COLORS.primary}`,
+    borderRadius: '12px', padding: '0.85rem 1rem',
+    fontSize: '0.9rem', color: COLORS.text, lineHeight: 1.5
+  },
+  insightNum: {
+    display: 'inline-block', minWidth: '24px', height: '24px',
+    background: COLORS.primary, color: 'white', borderRadius: '50%',
+    textAlign: 'center', lineHeight: '24px', fontSize: '0.75rem',
+    fontWeight: 700, marginRight: '0.5rem'
+  },
+  resultTitle: {
+    fontSize: '1.5rem', fontWeight: 700, margin: '0 0 0.4rem',
+    background: `linear-gradient(135deg, ${COLORS.primary} 0%, ${COLORS.dark} 100%)`,
+    WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
+    backgroundClip: 'text'
+  },
+  resultMeta: {
+    fontSize: '0.85rem', color: COLORS.textLight,
+    display: 'flex', gap: '1rem', flexWrap: 'wrap', marginBottom: '1rem'
+  },
+  resultSummary: {
+    fontSize: '1rem', lineHeight: 1.6, color: COLORS.text,
+    margin: '0 0 1rem'
+  },
+  limitazioniBox: {
+    marginTop: '1.25rem', padding: '0.75rem 1rem',
+    background: '#fff8e1', borderRadius: '10px',
+    fontSize: '0.85rem', color: '#7d5e00',
+    borderLeft: '3px solid #ffc107'
+  },
+  archiveTable: {
+    width: '100%', borderCollapse: 'separate', borderSpacing: 0,
+    fontSize: '0.9rem'
+  },
+  archiveTh: {
+    textAlign: 'left', padding: '0.85rem 1rem',
+    background: COLORS.extraLight, color: COLORS.primary,
+    fontWeight: 600, fontSize: '0.8rem', textTransform: 'uppercase',
+    letterSpacing: '0.05em'
+  },
+  archiveTd: {
+    padding: '0.85rem 1rem', borderBottom: `1px solid ${COLORS.extraLight}`,
+    color: COLORS.text
+  },
+  typeBadge: {
+    display: 'inline-block', padding: '0.25rem 0.7rem',
+    borderRadius: '999px', fontSize: '0.75rem', fontWeight: 600
+  },
+  typeBadgeAnalysis: { background: COLORS.extraLight, color: COLORS.primary },
+  typeBadgeForesight: { background: '#fde8d4', color: '#b45309' },
+  emptyState: {
+    textAlign: 'center', padding: '2.5rem 1rem',
+    background: 'rgba(255,255,255,0.6)', borderRadius: '16px',
+    color: COLORS.textLight, fontSize: '0.95rem'
+  }
+};
+
 // Sezione Analisi AI - permette di chiedere a Claude analisi e foresight
 // custom sul dataset delle ricette, con grafici e salvataggio.
 function AnalysesSection() {
@@ -1078,159 +1224,203 @@ function AnalysesSection() {
   }
 
   return (
-    <div style={{ animation: 'fadeInUp 0.6s' }}>
-      <div style={manageStyles.headerRow}>
-        <h2 style={manageStyles.sectionTitle}>Analisi AI sul corpus delle ricette</h2>
-        <button onClick={() => { setAuthenticated(false); setAuthPassword(''); setPwInput(''); }} style={manageStyles.linkBtn}>
+    <div style={{ ...styles.section, animation: 'fadeInUp 0.6s' }}>
+      {/* Hero header */}
+      <div style={analysesStyles.hero}>
+        <div style={analysesStyles.heroLeft}>
+          <div style={analysesStyles.heroIcon}>🔬</div>
+          <div>
+            <h2 style={analysesStyles.heroTitle}>Analisi AI sul corpus delle ricette</h2>
+            <p style={analysesStyles.heroSubtitle}>Chiedi a Claude di analizzare il dataset o di proiettare scenari futuri</p>
+          </div>
+        </div>
+        <button
+          onClick={() => { setAuthenticated(false); setAuthPassword(''); setPwInput(''); }}
+          style={analysesStyles.heroLogout}
+        >
           Esci
         </button>
       </div>
 
-      {/* Form */}
-      <div style={manageStyles.card}>
-        <h3 style={manageStyles.cardTitle}>Nuova analisi</h3>
-        <p style={manageStyles.cardHelp}>
-          Chiedi a Claude un'analisi sui dati delle ricette o uno scenario foresight sulla cucina italiana.
-          L'AI usa tutto il dataset (titolo, ricettario, anno, ingredienti, schede) per produrre report con grafici.
-        </p>
-
+      {/* Form card */}
+      <div style={styles.chartCard}>
         <form onSubmit={handleRun}>
-          <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1rem', alignItems: 'center' }}>
-            <label style={{ fontSize: '0.9rem' }}>
-              <input
-                type="radio"
-                name="atype"
-                value="analysis"
-                checked={type === 'analysis'}
-                onChange={() => setType('analysis')}
-                style={{ marginRight: '0.4rem' }}
-              />
-              Analisi (sui dati storici)
-            </label>
-            <label style={{ fontSize: '0.9rem' }}>
-              <input
-                type="radio"
-                name="atype"
-                value="foresight"
-                checked={type === 'foresight'}
-                onChange={() => setType('foresight')}
-                style={{ marginRight: '0.4rem' }}
-              />
-              Foresight (proiezioni future)
-            </label>
+          <h3 style={styles.chartTitle}>Nuova analisi</h3>
+          <p style={styles.chartSubtitle}>
+            L'AI usa l'intero dataset (titolo, ricettario, anno, ingredienti, schede) per produrre un report con grafico interattivo.
+          </p>
+
+          {/* Mode pills */}
+          <div style={analysesStyles.modeRow}>
+            <button
+              type="button"
+              onClick={() => setType('analysis')}
+              style={type === 'analysis' ? analysesStyles.modePillActive : analysesStyles.modePill}
+            >
+              📊 Analisi storica
+            </button>
+            <button
+              type="button"
+              onClick={() => setType('foresight')}
+              style={type === 'foresight' ? analysesStyles.modePillActive : analysesStyles.modePill}
+            >
+              🔮 Foresight
+            </button>
           </div>
 
-          <textarea
-            value={question}
-            onChange={(e) => setQuestion(e.target.value)}
-            placeholder={type === 'foresight' ? 'Es: Come evolvera\' la cucina italiana?' : 'Es: Confronta uso di grassi animali vs vegetali nei ricettari'}
-            rows={3}
-            style={manageStyles.textarea}
-            disabled={running}
-          />
+          {/* Question */}
+          <div style={{ marginTop: '1rem' }}>
+            <textarea
+              value={question}
+              onChange={(e) => setQuestion(e.target.value)}
+              placeholder={
+                type === 'foresight'
+                  ? 'Es. Come evolveranno le ricette tradizionali italiane nei prossimi 10 anni?'
+                  : 'Es. Confronta uso di grassi animali vs vegetali attraverso i ricettari storici.'
+              }
+              rows={3}
+              style={analysesStyles.textarea}
+              disabled={running}
+            />
+          </div>
 
-          <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap', marginTop: '0.75rem' }}>
-            <button type="submit" style={manageStyles.primaryBtn} disabled={running || !question.trim()}>
-              {running ? 'Generazione in corso...' : 'Genera analisi'}
+          {/* Actions */}
+          <div style={analysesStyles.actionRow}>
+            <button
+              type="submit"
+              style={running || !question.trim() ? analysesStyles.generateBtnDisabled : analysesStyles.generateBtn}
+              disabled={running || !question.trim()}
+            >
+              {running ? '⏳ Generazione...' : '✨ Genera analisi'}
             </button>
             {result && !saved && (
-              <button type="button" onClick={handleSave} style={manageStyles.secondaryBtn} disabled={saving}>
-                {saving ? 'Salvataggio...' : 'Salva report'}
+              <button type="button" onClick={handleSave} style={analysesStyles.saveBtn} disabled={saving}>
+                {saving ? 'Salvataggio...' : '💾 Salva report'}
               </button>
             )}
-            {saved && <span style={{ color: '#1a7f37', fontSize: '0.9rem' }}>✓ Salvato</span>}
+            {saved && <span style={{ color: '#1a7f37', fontSize: '0.9rem', fontWeight: 600 }}>✓ Report salvato in archivio</span>}
           </div>
 
-          {/* Esempi */}
-          <div style={{ marginTop: '1rem', fontSize: '0.85rem', color: COLORS.textLight }}>
-            <strong>Esempi:</strong>
-            <ul style={{ marginTop: '0.4rem', paddingLeft: '1.25rem' }}>
+          {/* Examples */}
+          <div style={{ marginTop: '1.5rem' }}>
+            <p style={{ fontSize: '0.8rem', color: COLORS.textLight, margin: '0 0 0.5rem', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 }}>
+              Esempi di {type === 'foresight' ? 'foresight' : 'analisi'}
+            </p>
+            <div style={analysesStyles.examplesGrid}>
               {(type === 'foresight' ? foresightExamples : examples).map((ex, i) => (
-                <li key={i} style={{ marginBottom: '0.3rem' }}>
-                  <button
-                    type="button"
-                    onClick={() => setQuestion(ex)}
-                    style={{ ...manageStyles.linkBtn, padding: 0, textAlign: 'left' }}
-                  >
-                    {ex}
-                  </button>
-                </li>
+                <button
+                  key={i}
+                  type="button"
+                  onClick={() => setQuestion(ex)}
+                  style={analysesStyles.exampleCard}
+                  onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.08)'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = 'none'; }}
+                >
+                  <span style={analysesStyles.exampleIcon}>{type === 'foresight' ? '🔮' : '💡'}</span>
+                  <span>{ex}</span>
+                </button>
               ))}
-            </ul>
+            </div>
           </div>
         </form>
       </div>
 
-      {errorMsg && <div style={manageStyles.errorBox}>{errorMsg}</div>}
+      {errorMsg && (
+        <div style={{
+          padding: '0.85rem 1rem', background: '#fdecea', color: '#9c2222',
+          borderRadius: '12px', borderLeft: '3px solid #dc3545', fontSize: '0.9rem'
+        }}>
+          {errorMsg}
+        </div>
+      )}
 
       {/* Result */}
       {result && (
-        <div style={{ ...manageStyles.card, marginTop: '1.5rem' }}>
-          <h3 style={{ ...manageStyles.cardTitle, fontSize: '1.2rem' }}>{result.title || 'Analisi'}</h3>
-          {meta?.recipesAnalyzed && (
-            <p style={{ fontSize: '0.8rem', color: COLORS.textLight, marginTop: 0 }}>
-              Basata su {meta.recipesAnalyzed} ricette · tipo: {type === 'foresight' ? 'foresight' : 'analisi'}
-            </p>
-          )}
-          {result.summary && (
-            <p style={{ marginTop: '0.5rem', lineHeight: 1.5, color: COLORS.text }}>{result.summary}</p>
-          )}
+        <div style={styles.chartCard}>
+          <h2 style={analysesStyles.resultTitle}>{result.title || 'Analisi'}</h2>
+          <div style={analysesStyles.resultMeta}>
+            {meta?.recipesAnalyzed && <span>📚 {meta.recipesAnalyzed} ricette analizzate</span>}
+            <span style={type === 'foresight' ? { ...analysesStyles.typeBadge, ...analysesStyles.typeBadgeForesight } : { ...analysesStyles.typeBadge, ...analysesStyles.typeBadgeAnalysis }}>
+              {type === 'foresight' ? '🔮 Foresight' : '📊 Analisi'}
+            </span>
+            {meta?.savedAt && <span>💾 {new Date(meta.savedAt).toLocaleString('it-IT')}</span>}
+          </div>
+
+          {result.summary && <p style={analysesStyles.resultSummary}>{result.summary}</p>}
 
           {Array.isArray(result.insights) && result.insights.length > 0 && (
-            <div style={{ marginTop: '1rem' }}>
-              <strong style={{ color: COLORS.primary }}>Punti chiave:</strong>
-              <ul style={{ marginTop: '0.4rem', paddingLeft: '1.25rem', lineHeight: 1.6 }}>
-                {result.insights.map((it, i) => <li key={i}>{it}</li>)}
-              </ul>
+            <div>
+              <h4 style={{ ...styles.chartTitle, marginTop: '1rem' }}>Punti chiave</h4>
+              <div style={analysesStyles.insightsGrid}>
+                {result.insights.map((it, i) => (
+                  <div key={i} style={analysesStyles.insightCard}>
+                    <span style={analysesStyles.insightNum}>{i + 1}</span>
+                    {it}
+                  </div>
+                ))}
+              </div>
             </div>
           )}
 
           {result.chartData && result.chartType && (
-            <div style={{ marginTop: '1.5rem', maxWidth: '100%', overflow: 'hidden' }}>
+            <div style={{ marginTop: '1.5rem', background: 'white', borderRadius: '14px', padding: '1.25rem', border: `1px solid ${COLORS.extraLight}` }}>
               <AIChartRenderer
                 chartType={result.chartType}
                 chartData={result.chartData}
                 chartConfig={result.chartConfig || {}}
+                title={result.title}
               />
             </div>
           )}
 
           {result.limitazioni && (
-            <p style={{ marginTop: '1rem', fontSize: '0.85rem', color: COLORS.textLight, fontStyle: 'italic' }}>
-              <strong>Limitazioni:</strong> {result.limitazioni}
-            </p>
+            <div style={analysesStyles.limitazioniBox}>
+              <strong>⚠ Limitazioni:</strong> {result.limitazioni}
+            </div>
           )}
         </div>
       )}
 
-      {/* Saved analyses */}
-      <div style={{ marginTop: '2rem' }}>
-        <h3 style={{ color: COLORS.primary, fontSize: '1.1rem' }}>Archivio analisi ({savedList.length})</h3>
+      {/* Archive */}
+      <div style={styles.chartCard}>
+        <h3 style={styles.chartTitle}>📁 Archivio analisi ({savedList.length})</h3>
+        <p style={styles.chartSubtitle}>Tutti i report che hai salvato. Click su "Apri" per ricaricare un'analisi nel pannello sopra.</p>
         {loadingList ? (
-          <p style={{ color: COLORS.textLight }}>Caricamento...</p>
+          <p style={{ color: COLORS.textLight, textAlign: 'center', padding: '1rem' }}>Caricamento...</p>
         ) : savedList.length === 0 ? (
-          <p style={{ color: COLORS.textLight }}>Nessuna analisi salvata.</p>
+          <div style={analysesStyles.emptyState}>
+            <div style={{ fontSize: '2.5rem', marginBottom: '0.5rem' }}>📭</div>
+            Nessuna analisi salvata. Genera la tua prima analisi e cliccaci "Salva report".
+          </div>
         ) : (
-          <div style={manageStyles.tableWrap}>
-            <table style={manageStyles.table}>
+          <div style={{ overflowX: 'auto', marginTop: '0.75rem' }}>
+            <table style={analysesStyles.archiveTable}>
               <thead>
                 <tr>
-                  <th style={manageStyles.th}>Tipo</th>
-                  <th style={manageStyles.th}>Domanda</th>
-                  <th style={manageStyles.th}>Data</th>
-                  <th style={manageStyles.th}></th>
+                  <th style={analysesStyles.archiveTh}>Tipo</th>
+                  <th style={analysesStyles.archiveTh}>Domanda</th>
+                  <th style={analysesStyles.archiveTh}>Data</th>
+                  <th style={analysesStyles.archiveTh}></th>
                 </tr>
               </thead>
               <tbody>
                 {savedList.map(a => (
                   <tr key={a.id}>
-                    <td style={manageStyles.td}>{a.type === 'foresight' ? '🔮 Foresight' : '📊 Analisi'}</td>
-                    <td style={manageStyles.td}>{a.question.length > 100 ? a.question.slice(0, 100) + '…' : a.question}</td>
-                    <td style={manageStyles.td}>{new Date(a.created_at).toLocaleString('it-IT')}</td>
-                    <td style={manageStyles.td}>
-                      <button onClick={() => handleLoadSaved(a.id)} style={manageStyles.secondaryBtn}>Apri</button>
+                    <td style={analysesStyles.archiveTd}>
+                      <span style={a.type === 'foresight' ? { ...analysesStyles.typeBadge, ...analysesStyles.typeBadgeForesight } : { ...analysesStyles.typeBadge, ...analysesStyles.typeBadgeAnalysis }}>
+                        {a.type === 'foresight' ? '🔮 Foresight' : '📊 Analisi'}
+                      </span>
+                    </td>
+                    <td style={analysesStyles.archiveTd}>
+                      {a.question.length > 110 ? a.question.slice(0, 110) + '…' : a.question}
+                    </td>
+                    <td style={analysesStyles.archiveTd}>
+                      {new Date(a.created_at).toLocaleDateString('it-IT', { day: '2-digit', month: 'short', year: 'numeric' })}
+                    </td>
+                    <td style={{ ...analysesStyles.archiveTd, whiteSpace: 'nowrap' }}>
+                      <button onClick={() => handleLoadSaved(a.id)} style={{ ...analysesStyles.saveBtn, fontSize: '0.85rem', padding: '0.4rem 0.85rem' }}>Apri</button>
                       {' '}
-                      <button onClick={() => handleDeleteSaved(a.id)} style={manageStyles.deleteBtn}>Elimina</button>
+                      <button onClick={() => handleDeleteSaved(a.id)} style={{ padding: '0.4rem 0.85rem', background: 'transparent', color: '#dc3545', border: '1px solid #dc3545', borderRadius: '8px', cursor: 'pointer', fontSize: '0.85rem' }}>Elimina</button>
                     </td>
                   </tr>
                 ))}
@@ -1243,71 +1433,142 @@ function AnalysesSection() {
   );
 }
 
-// Renderer dei grafici generati dall'AI: traduce il formato neutro
-// {chartType, chartData, chartConfig} in chart.js (Bar/Line/Doughnut).
-function AIChartRenderer({ chartType, chartData, chartConfig }) {
-  if (!Array.isArray(chartData) || chartData.length === 0) return null;
+// Helpers difensivi: coerce un valore qualsiasi a numero/stringa primitivi
+function toNumber(v) {
+  if (v === null || v === undefined) return null;
+  if (typeof v === 'number') return Number.isFinite(v) ? v : null;
+  if (typeof v === 'string') {
+    const n = parseFloat(v.replace(/,/g, '.'));
+    return Number.isFinite(n) ? n : null;
+  }
+  if (typeof v === 'object') {
+    const candidate = v.value ?? v.valore ?? v.count ?? v.n ?? v.numero ?? null;
+    return toNumber(candidate);
+  }
+  return null;
+}
+
+function toLabel(v) {
+  if (v === null || v === undefined) return '';
+  if (typeof v === 'string' || typeof v === 'number') return String(v);
+  if (typeof v === 'object') {
+    return String(v.label ?? v.name ?? v.titolo ?? v.anno ?? JSON.stringify(v).slice(0, 30));
+  }
+  return String(v);
+}
+
+// Renderer dei grafici generati dall'AI: formato neutro -> Chart.js (Bar/Line/Doughnut).
+// Difensivo verso payload imperfetti (oggetti annidati, valori non numerici).
+function AIChartRenderer({ chartType, chartData, chartConfig, title }) {
+  if (!Array.isArray(chartData) || chartData.length === 0) {
+    return <p style={{ textAlign: 'center', color: COLORS.textLight }}>Nessun dato disponibile per il grafico.</p>;
+  }
 
   const xKey = chartConfig?.xKey || 'label';
   const series = Array.isArray(chartConfig?.series) ? chartConfig.series : null;
-  const palette = ['#016fab', '#90e0ef', '#00b4d8', '#014d7a', '#f4a261', '#e76f51', '#caf0f8'];
+  const palette = ['#016fab', '#f4a261', '#2a9d8f', '#e76f51', '#90e0ef', '#014d7a', '#e9c46a', '#00b4d8'];
+
+  const commonOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        position: 'bottom',
+        labels: { padding: 16, font: { size: 12, weight: 500 }, usePointStyle: true, pointStyle: 'circle' }
+      },
+      tooltip: {
+        backgroundColor: 'rgba(1, 77, 122, 0.95)',
+        padding: 12,
+        cornerRadius: 8,
+        titleFont: { size: 13, weight: 600 },
+        bodyFont: { size: 12 },
+        boxPadding: 6
+      }
+    }
+  };
 
   if (chartType === 'pie') {
     const labelKey = chartConfig?.labelKey || 'label';
     const valueKey = chartConfig?.valueKey || 'value';
+    const labels = chartData.map(d => toLabel(d?.[labelKey] ?? d?.label));
+    const values = chartData.map(d => toNumber(d?.[valueKey] ?? d?.value) ?? 0);
     const data = {
-      labels: chartData.map(d => d[labelKey]),
+      labels,
       datasets: [{
-        data: chartData.map(d => d[valueKey]),
+        data: values,
         backgroundColor: chartData.map((_, i) => palette[i % palette.length]),
-        borderWidth: 0
+        borderWidth: 2,
+        borderColor: 'white'
       }]
     };
     return (
-      <div style={{ maxWidth: 480, margin: '0 auto' }}>
-        <Doughnut data={data} options={{ responsive: true, plugins: { legend: { position: 'bottom' } } }} />
+      <div style={{ height: 380, position: 'relative' }}>
+        <Doughnut data={data} options={{
+          ...commonOptions,
+          cutout: '55%'
+        }} />
       </div>
     );
   }
 
   // Bar / Line / Area
-  const labels = chartData.map(d => d[xKey]);
-  let datasets;
+  const labels = chartData.map(d => toLabel(d?.[xKey]));
+  let seriesKeys;
   if (series && series.length > 0) {
-    datasets = series.map((s, i) => ({
-      label: s.name || s.key,
-      data: chartData.map(d => d[s.key]),
-      backgroundColor: s.color || palette[i % palette.length],
-      borderColor: s.color || palette[i % palette.length],
-      fill: chartType === 'area',
-      tension: 0.3
-    }));
+    seriesKeys = series;
   } else {
-    // Auto-detect series: tutte le chiavi numeriche oltre xKey
-    const seriesKeys = Object.keys(chartData[0]).filter(k => k !== xKey && typeof chartData[0][k] === 'number');
-    datasets = seriesKeys.map((k, i) => ({
-      label: k,
-      data: chartData.map(d => d[k]),
-      backgroundColor: palette[i % palette.length],
-      borderColor: palette[i % palette.length],
-      fill: chartType === 'area',
-      tension: 0.3
-    }));
+    // auto-detect: chiavi non-xKey con almeno un valore numerico
+    const sampleKeys = new Set();
+    for (const row of chartData) {
+      if (!row || typeof row !== 'object') continue;
+      for (const k of Object.keys(row)) {
+        if (k === xKey) continue;
+        if (toNumber(row[k]) !== null) sampleKeys.add(k);
+      }
+    }
+    seriesKeys = [...sampleKeys].map(k => ({ key: k, name: k }));
   }
+
+  const datasets = seriesKeys.map((s, i) => {
+    const color = s.color || palette[i % palette.length];
+    return {
+      label: s.name || s.key,
+      data: chartData.map(d => toNumber(d?.[s.key])),
+      backgroundColor: chartType === 'area' ? color + '40' : color,
+      borderColor: color,
+      borderWidth: 2,
+      fill: chartType === 'area',
+      tension: 0.35,
+      pointRadius: chartType === 'bar' ? 0 : 4,
+      pointHoverRadius: 6,
+      pointBackgroundColor: color,
+      borderRadius: chartType === 'bar' ? 6 : 0
+    };
+  });
 
   const data = { labels, datasets };
   const options = {
-    responsive: true,
-    plugins: { legend: { position: 'bottom' } },
+    ...commonOptions,
     scales: {
-      y: { beginAtZero: true }
+      y: {
+        beginAtZero: true,
+        grid: { color: 'rgba(0,0,0,0.05)' },
+        ticks: { font: { size: 11 }, color: COLORS.textLight }
+      },
+      x: {
+        grid: { display: false },
+        ticks: { font: { size: 11 }, color: COLORS.textLight, maxRotation: 45, minRotation: 0 }
+      }
     }
   };
 
-  if (chartType === 'line' || chartType === 'area') {
-    return <Line data={data} options={options} />;
-  }
-  return <Bar data={data} options={options} />;
+  return (
+    <div style={{ height: 380, position: 'relative' }}>
+      {(chartType === 'line' || chartType === 'area')
+        ? <Line data={data} options={options} />
+        : <Bar data={data} options={options} />}
+    </div>
+  );
 }
 
 // Sezione Gestione - upload CSV + tabella ricette + eliminazione
