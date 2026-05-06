@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 
 /**
  * AdminDashboard - Dashboard per visualizzare statistiche e analytics
@@ -7,6 +7,7 @@ import React, { useState, useEffect } from 'react';
 export default function AdminDashboard() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [password, setPassword] = useState('');
+  const [authPassword, setAuthPassword] = useState(''); // password validata, usata come header
   const [activeTab, setActiveTab] = useState('stats');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -16,16 +17,26 @@ export default function AdminDashboard() {
   const [curiosities, setCuriosities] = useState(null);
   const [analytics, setAnalytics] = useState(null);
 
-  // Password semplice (in produzione usare env var)
-  const ADMIN_PASSWORD = 'azzurra2024';
-
-  const handleLogin = (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
-    if (password === ADMIN_PASSWORD) {
-      setIsAuthenticated(true);
-      setError(null);
-    } else {
-      setError('Password non corretta');
+    setError(null);
+    try {
+      const res = await fetch('/api/admin-login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-admin-password': password
+        },
+        body: JSON.stringify({})
+      });
+      if (res.ok) {
+        setAuthPassword(password);
+        setIsAuthenticated(true);
+      } else {
+        setError('Password non corretta');
+      }
+    } catch (err) {
+      setError('Errore di rete: ' + err.message);
     }
   };
 
@@ -108,6 +119,12 @@ export default function AdminDashboard() {
         >
           Analisi Conversazioni
         </button>
+        <button
+          style={activeTab === 'recipes' ? styles.tabActive : styles.tab}
+          onClick={() => setActiveTab('recipes')}
+        >
+          Ricette
+        </button>
       </nav>
 
       {loading && <p style={styles.loading}>Caricamento...</p>}
@@ -117,6 +134,7 @@ export default function AdminDashboard() {
         {activeTab === 'stats' && stats && <StatsTab data={stats} />}
         {activeTab === 'curiosities' && curiosities && <CuriositiesTab data={curiosities} />}
         {activeTab === 'analytics' && analytics && <AnalyticsTab data={analytics} />}
+        {activeTab === 'recipes' && <RecipesTab adminPassword={authPassword} />}
       </main>
     </div>
   );
@@ -310,6 +328,211 @@ function Card({ title, value, icon }) {
         <p style={styles.cardValue}>{value}</p>
         <p style={styles.cardTitle}>{title}</p>
       </div>
+    </div>
+  );
+}
+
+// Componente Tab Ricette - upload CSV + tabella ricette
+function RecipesTab({ adminPassword }) {
+  const [recipes, setRecipes] = useState([]);
+  const [total, setTotal] = useState(0);
+  const [search, setSearch] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [uploadResult, setUploadResult] = useState(null);
+  const [errorMsg, setErrorMsg] = useState(null);
+  const fileInputRef = useRef(null);
+
+  const authHeaders = {
+    'Content-Type': 'application/json',
+    'x-admin-password': adminPassword
+  };
+
+  const loadRecipes = async (q = '') => {
+    setLoading(true);
+    setErrorMsg(null);
+    try {
+      const url = `/api/admin/list-recipes?limit=200&search=${encodeURIComponent(q)}`;
+      const res = await fetch(url, { headers: { 'x-admin-password': adminPassword } });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || `HTTP ${res.status}`);
+      }
+      const data = await res.json();
+      setRecipes(data.recipes || []);
+      setTotal(data.total || 0);
+    } catch (err) {
+      setErrorMsg('Errore caricamento ricette: ' + err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (adminPassword) loadRecipes('');
+  }, [adminPassword]);
+
+  const handleSearch = (e) => {
+    e.preventDefault();
+    loadRecipes(search);
+  };
+
+  const handleUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploading(true);
+    setUploadResult(null);
+    setErrorMsg(null);
+
+    try {
+      const csv = await file.text();
+      const res = await fetch('/api/admin/upload-recipes', {
+        method: 'POST',
+        headers: authHeaders,
+        body: JSON.stringify({ csv })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      setUploadResult(data);
+      await loadRecipes(search);
+    } catch (err) {
+      setErrorMsg('Errore upload: ' + err.message);
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const handleDelete = async (id, titolo) => {
+    if (!window.confirm(`Eliminare "${titolo}"?`)) return;
+    setErrorMsg(null);
+    try {
+      const res = await fetch('/api/admin/delete-recipe', {
+        method: 'POST',
+        headers: authHeaders,
+        body: JSON.stringify({ id })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      await loadRecipes(search);
+    } catch (err) {
+      setErrorMsg('Errore eliminazione: ' + err.message);
+    }
+  };
+
+  const downloadSampleCsv = () => {
+    const sample = [
+      'titolo;ricettario;anno;famiglia;ingredienti;procedimento;scheda_antropologica;scheda_nutrizionale;calorie;n_persone',
+      'Tiramisu;Accademia Italiana della Cucina;1985;Dolci al cucchiaio;mascarpone 500g, savoiardi 300g, caffe 250ml, uova 4, zucchero 100g;Sbattere i tuorli con lo zucchero...;Dolce nato a Treviso negli anni 60;Ricco di proteine;380;6'
+    ].join('\n');
+    const blob = new Blob([sample], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'ricette-sample.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  return (
+    <div>
+      <h2 style={styles.sectionTitle}>Gestione Ricette ({total})</h2>
+
+      {/* Upload CSV */}
+      <div style={styles.uploadBox}>
+        <h3 style={styles.subsectionTitle}>Importa da CSV</h3>
+        <p style={{ color: '#666', fontSize: '0.9rem', margin: '0.5rem 0 1rem' }}>
+          Colonne supportate: <code>titolo</code> (obbligatoria), <code>ricettario</code>, <code>anno</code>, <code>famiglia</code>, <code>ingredienti</code>, <code>procedimento</code>, <code>scheda_antropologica</code>, <code>scheda_nutrizionale</code>, <code>calorie</code>, <code>n_persone</code>.
+          <br/>Le righe esistenti (stesso titolo + ricettario + anno) vengono aggiornate. L'embedding viene rigenerato automaticamente.
+        </p>
+        <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".csv,text/csv"
+            onChange={handleUpload}
+            disabled={uploading}
+          />
+          <button onClick={downloadSampleCsv} style={styles.secondaryBtn}>
+            Scarica CSV di esempio
+          </button>
+          {uploading && <span style={{ color: '#016fab' }}>Caricamento in corso...</span>}
+        </div>
+
+        {uploadResult && (
+          <div style={styles.uploadResult}>
+            <strong>Import completato</strong>: {uploadResult.inserted} inserite, {uploadResult.updated} aggiornate, {uploadResult.errors} errori (su {uploadResult.total}).
+            {uploadResult.errorDetails?.length > 0 && (
+              <details style={{ marginTop: '0.5rem' }}>
+                <summary style={{ cursor: 'pointer' }}>Dettagli errori</summary>
+                <ul style={{ marginTop: '0.5rem', fontSize: '0.85rem' }}>
+                  {uploadResult.errorDetails.slice(0, 20).map((e, i) => (
+                    <li key={i}>Riga {e.row}{e.titolo ? ` (${e.titolo})` : ''}: {e.error}</li>
+                  ))}
+                </ul>
+              </details>
+            )}
+          </div>
+        )}
+      </div>
+
+      {errorMsg && <div style={styles.errorBox}>{errorMsg}</div>}
+
+      {/* Search */}
+      <form onSubmit={handleSearch} style={{ display: 'flex', gap: '0.5rem', margin: '1.5rem 0 1rem' }}>
+        <input
+          type="text"
+          placeholder="Cerca per titolo..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          style={{ flex: 1, padding: '0.6rem', borderRadius: '6px', border: '1px solid #ccc' }}
+        />
+        <button type="submit" style={styles.secondaryBtn}>Cerca</button>
+        {search && (
+          <button type="button" onClick={() => { setSearch(''); loadRecipes(''); }} style={styles.secondaryBtn}>
+            Reset
+          </button>
+        )}
+      </form>
+
+      {/* Recipes table */}
+      {loading ? (
+        <p style={styles.loading}>Caricamento ricette...</p>
+      ) : recipes.length === 0 ? (
+        <p style={{ color: '#666', textAlign: 'center', padding: '2rem' }}>Nessuna ricetta trovata.</p>
+      ) : (
+        <div style={{ overflowX: 'auto', background: 'white', borderRadius: '8px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+          <table style={styles.table}>
+            <thead>
+              <tr>
+                <th style={styles.th}>Titolo</th>
+                <th style={styles.th}>Ricettario</th>
+                <th style={styles.th}>Anno</th>
+                <th style={styles.th}>Famiglia</th>
+                <th style={styles.th}>Calorie</th>
+                <th style={styles.th}></th>
+              </tr>
+            </thead>
+            <tbody>
+              {recipes.map((r) => (
+                <tr key={r.id}>
+                  <td style={styles.td}>{r.titolo}</td>
+                  <td style={styles.td}>{r.ricettario || '—'}</td>
+                  <td style={styles.td}>{r.anno || '—'}</td>
+                  <td style={styles.td}>{r.famiglia || '—'}</td>
+                  <td style={styles.td}>{r.calorie || '—'}</td>
+                  <td style={styles.td}>
+                    <button onClick={() => handleDelete(r.id, r.titolo)} style={styles.deleteBtn}>
+                      Elimina
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }
@@ -566,5 +789,62 @@ const styles = {
   error: {
     color: '#dc3545',
     marginBottom: '1rem'
+  },
+  uploadBox: {
+    background: 'white',
+    borderRadius: '12px',
+    padding: '1.5rem',
+    boxShadow: '0 2px 8px rgba(0,0,0,0.06)'
+  },
+  uploadResult: {
+    marginTop: '1rem',
+    padding: '0.75rem 1rem',
+    background: '#e8f4fd',
+    borderRadius: '8px',
+    color: '#014d7a',
+    fontSize: '0.9rem'
+  },
+  errorBox: {
+    margin: '1rem 0',
+    padding: '0.75rem 1rem',
+    background: '#fdecea',
+    color: '#9c2222',
+    borderRadius: '8px',
+    fontSize: '0.9rem'
+  },
+  secondaryBtn: {
+    padding: '0.55rem 1rem',
+    background: '#e0e0e0',
+    color: '#333',
+    border: 'none',
+    borderRadius: '6px',
+    cursor: 'pointer',
+    fontSize: '0.9rem'
+  },
+  table: {
+    width: '100%',
+    borderCollapse: 'collapse',
+    fontSize: '0.9rem'
+  },
+  th: {
+    textAlign: 'left',
+    padding: '0.75rem',
+    background: '#f5f7fa',
+    borderBottom: '2px solid #e0e0e0',
+    color: '#016fab',
+    fontWeight: '600'
+  },
+  td: {
+    padding: '0.75rem',
+    borderBottom: '1px solid #f0f0f0'
+  },
+  deleteBtn: {
+    padding: '0.4rem 0.8rem',
+    background: '#dc3545',
+    color: 'white',
+    border: 'none',
+    borderRadius: '6px',
+    cursor: 'pointer',
+    fontSize: '0.85rem'
   }
 };

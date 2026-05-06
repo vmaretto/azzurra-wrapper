@@ -22,8 +22,9 @@ const openai = openaiKey
   ? new OpenAI({ apiKey: openaiKey })
   : null;
 
-// Lista completa delle 52 ricette nel database
-const RICETTE_DATABASE = [
+// Lista di fallback (usata se Supabase non risponde). La whitelist effettiva
+// viene caricata dinamicamente dal DB tramite getRicetteWhitelist().
+const RICETTE_FALLBACK = [
   // Biscotti
   'Amaretti', 'Cantuccini Toscani IGP', 'Ricciarelli di Siena IGP', 'Savoiardi', 'Brigidini', 'Cavallucci di Siena', 'Fave dei morti',
   // Dolci al cucchiaio
@@ -45,6 +46,51 @@ const RICETTE_DATABASE = [
 // Ricette salate (da escludere per suggerimenti generici)
 const RICETTE_SALATE = ['Bruschetta', 'Calzone alla napoletana', 'Panzerotti fritti', 'Piadina Romagnola IGP', 'Pizza napoletana STG', 'Torta di patate', 'Torta Pasqualina con spinaci'];
 
+// Cache whitelist ricette (5 min). Invalidata da admin upload/delete.
+const WHITELIST_TTL_MS = 5 * 60 * 1000;
+
+async function getRicetteWhitelist() {
+  const cache = globalThis.__ricetteWhitelistCache;
+  if (cache && cache.expiresAt > Date.now() && Array.isArray(cache.list)) {
+    return cache.list;
+  }
+
+  if (!supabase) return RICETTE_FALLBACK;
+
+  try {
+    const { data, error } = await supabase
+      .from('ricette')
+      .select('titolo')
+      .order('titolo', { ascending: true });
+
+    if (error || !data || data.length === 0) {
+      console.warn('⚠️ Whitelist DB vuota o errore, uso fallback:', error?.message);
+      return RICETTE_FALLBACK;
+    }
+
+    // Dedup mantenendo titoli unici (case-insensitive)
+    const seen = new Set();
+    const list = [];
+    for (const row of data) {
+      const t = (row.titolo || '').trim();
+      if (!t) continue;
+      const key = t.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      list.push(t);
+    }
+
+    globalThis.__ricetteWhitelistCache = {
+      list,
+      expiresAt: Date.now() + WHITELIST_TTL_MS
+    };
+    return list;
+  } catch (err) {
+    console.error('Errore caricamento whitelist:', err);
+    return RICETTE_FALLBACK;
+  }
+}
+
 // Normalizza testo per confronti
 function normalizeText(text) {
   return text.toLowerCase()
@@ -56,10 +102,10 @@ function normalizeText(text) {
 }
 
 // Rileva quale ricetta del catalogo viene menzionata nel messaggio
-function getMentionedRecipe(message) {
+function getMentionedRecipe(message, whitelist = RICETTE_FALLBACK) {
   const msgNorm = normalizeText(message);
 
-  for (const recipe of RICETTE_DATABASE) {
+  for (const recipe of whitelist) {
     const recipeNorm = normalizeText(recipe);
 
     // Match esatto o parole chiave significative (>= 4 caratteri)
@@ -155,18 +201,20 @@ function isGenericRequest(message) {
 }
 
 // Ottieni UNA ricetta random (solo dolci)
-function getRandomRecipe() {
-  const dolci = RICETTE_DATABASE.filter(r => !RICETTE_SALATE.includes(r));
+function getRandomRecipe(whitelist = RICETTE_FALLBACK) {
+  const dolci = whitelist.filter(r => !RICETTE_SALATE.includes(r));
+  if (dolci.length === 0) return whitelist[0];
   return dolci[Math.floor(Math.random() * dolci.length)];
 }
 
-// System prompt per Azzurra
-const AZZURRA_SYSTEM_PROMPT = `## PERSONA
+// System prompt per Azzurra (dinamico in base alla whitelist corrente)
+function buildAzzurraSystemPrompt(whitelist) {
+  return `## PERSONA
 Sono Azzurra, guida della tradizione dolciaria italiana. Parlo in modo caldo e sintetico.
 
 ## REGOLA FONDAMENTALE - LEGGERE ATTENTAMENTE
 Posso parlare ESCLUSIVAMENTE di queste ricette del mio archivio:
-${RICETTE_DATABASE.join(', ')}.
+${whitelist.join(', ')}.
 
 DIVIETO ASSOLUTO: Non posso MAI menzionare, suggerire o parlare di ricette/piatti che NON sono in questa lista.
 Se l'utente chiede qualcosa non in lista, propongo gentilmente una ricetta alternativa dal mio catalogo.
@@ -183,6 +231,7 @@ Se l'utente chiede qualcosa non in lista, propongo gentilmente una ricetta alter
 - MAI elenchi numerati (1. 2. 3.) o puntati (- •)
 - NO asterischi, NO emoji
 - Linguaggio parlato naturale (viene letto ad alta voce)`;
+}
 
 // Cerca ricette in Supabase per NOME ESATTO
 async function searchRecipeByName(recipeName) {
@@ -307,24 +356,27 @@ export default async function handler(req, res) {
   }
 
   try {
+    // Carica whitelist dinamica dal DB (cache 5 min, fallback a lista hardcoded)
+    const whitelist = await getRicetteWhitelist();
+
     let relevantRecipes = [];
     let contextInfo = '';
     let searchedRecipe = null;
 
     // 0. Controlla se menziona un ricettario specifico (follow-up)
     const mentionedRicettario = getMentionedRicettario(message);
-    
+
     // Estrai la ricetta dalla conversation history se non è nel messaggio
     let recipeFromHistory = null;
     if (conversationHistory.length > 0) {
       for (const msg of conversationHistory) {
-        const recipe = getMentionedRecipe(msg.content);
+        const recipe = getMentionedRecipe(msg.content, whitelist);
         if (recipe) recipeFromHistory = recipe;
       }
     }
 
     // 1. Controlla se menziona una ricetta specifica
-    const mentionedRecipe = getMentionedRecipe(message);
+    const mentionedRecipe = getMentionedRecipe(message, whitelist);
 
     if (mentionedRicettario && recipeFromHistory) {
       // CASO 0: Utente chiede un ricettario specifico per una ricetta discussa
@@ -370,7 +422,7 @@ Proponi "${topResult.titolo}" in modo naturale, menzionando perché è adatto al
 ${formatRecipesContext(semanticResults, 'ricette suggerite')}`;
       } else {
         // Fallback a random se semantica fallisce
-        const suggestion = getRandomRecipe();
+        const suggestion = getRandomRecipe(whitelist);
         console.log('🎲 Fallback a suggerimento random:', suggestion);
         searchedRecipe = suggestion;
         relevantRecipes = await searchRecipeByName(suggestion);
@@ -405,8 +457,8 @@ Se non è chiaro, chiedi gentilmente di specificare.`;
       }
     }
 
-    // Costruisci system prompt
-    const systemPrompt = AZZURRA_SYSTEM_PROMPT + contextInfo;
+    // Costruisci system prompt (whitelist dinamica)
+    const systemPrompt = buildAzzurraSystemPrompt(whitelist) + contextInfo;
 
     // Costruisci messaggi (ultimi 10 per contesto)
     const messages = [
