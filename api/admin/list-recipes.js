@@ -28,7 +28,7 @@ export default async function handler(req, res) {
   try {
     let query = supabase
       .from('ricette')
-      .select('id, titolo, ricettario, anno, famiglia, calorie, n_persone', { count: 'exact' })
+      .select('id, titolo, ricettario, anno, famiglia, portata, calorie, n_persone', { count: 'exact' })
       .order('titolo', { ascending: true })
       .range(offset, offset + limit - 1);
 

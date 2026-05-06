@@ -67,16 +67,24 @@ function normalizeKey(k) {
 }
 
 const COLUMN_ALIASES = {
+  // recipe-level
   titolo: ['titolo', 'nome', 'title', 'recipe'],
   ricettario: ['ricettario', 'fonte', 'source', 'cookbook'],
   anno: ['anno', 'year'],
   famiglia: ['famiglia', 'family', 'category', 'categoria'],
+  portata: ['portata', 'course'],
   ingredienti: ['ingredienti', 'ingredients'],
-  procedimento: ['procedimento', 'preparazione', 'preparation', 'method'],
+  procedimento: ['procedimento', 'preparation', 'method'],
   scheda_antropologica: ['scheda_antropologica', 'storia', 'history', 'antropologia'],
   scheda_nutrizionale: ['scheda_nutrizionale', 'nutrizione', 'nutrition'],
   calorie: ['calorie', 'kcal', 'calories'],
-  n_persone: ['n_persone', 'persone', 'porzioni', 'servings', 'serves']
+  n_persone: ['n_persone', 'npersone', 'npersonetxt', 'persone', 'porzioni', 'servings', 'serves'],
+  // per-ingredient (multi-row format)
+  ingrediente_principale: ['ingredienteprincipale', 'ingrediente_principale', 'ingrediente', 'ingredient'],
+  ingrediente_specifico: ['ingredientespecifico', 'ingrediente_specifico', 'specifico', 'specific'],
+  quantita: ['quantita', 'quantity', 'amount'],
+  um: ['um', 'unit', 'unita_di_misura', 'unita'],
+  preparazione_sezione: ['preparazione', 'sezione', 'section', 'tipo']
 };
 
 function buildColumnMap(headers) {
@@ -95,6 +103,78 @@ async function generateEmbedding(text) {
     input: text.substring(0, 8000)
   });
   return response.data[0].embedding;
+}
+
+function normalizeIdentityKey(titolo, ricettario, anno) {
+  return [
+    String(titolo || '').toLowerCase().trim(),
+    String(ricettario || '').toLowerCase().trim(),
+    anno !== null && anno !== undefined && anno !== '' ? String(anno).trim() : ''
+  ].join('||');
+}
+
+function buildIngredientObject(row, colMap) {
+  const principale = colMap.ingrediente_principale
+    ? String(row[colMap.ingrediente_principale] || '').trim()
+    : '';
+  if (!principale) return null;
+  return {
+    sezione: colMap.preparazione_sezione ? String(row[colMap.preparazione_sezione] || '').trim() : '',
+    principale,
+    specifico: colMap.ingrediente_specifico ? String(row[colMap.ingrediente_specifico] || '').trim() : '',
+    quantita: colMap.quantita ? String(row[colMap.quantita] || '').trim() : '',
+    um: colMap.um ? String(row[colMap.um] || '').trim() : ''
+  };
+}
+
+function renderIngredientsText(ingredients) {
+  if (!ingredients || ingredients.length === 0) return '';
+
+  const sections = new Map();
+  for (const ing of ingredients) {
+    const sec = ing.sezione || 'Principale';
+    if (!sections.has(sec)) sections.set(sec, []);
+
+    let text = ing.principale;
+    if (ing.specifico && ing.specifico.toLowerCase() !== ing.principale.toLowerCase()) {
+      text += ` (${ing.specifico})`;
+    }
+    const qum = [ing.quantita, ing.um].filter(Boolean).join(' ');
+    if (qum) text += ` ${qum}`;
+    sections.get(sec).push(text);
+  }
+
+  if (sections.size === 1) {
+    return [...sections.values()][0].join(', ');
+  }
+  return [...sections.entries()]
+    .map(([sec, items]) => `[${sec}] ${items.join(', ')}`)
+    .join('; ');
+}
+
+async function upsertRecipe(record) {
+  // Match per identità (titolo + ricettario + anno)
+  let query = supabase.from('ricette').select('id').eq('titolo', record.titolo);
+  if (record.ricettario) query = query.eq('ricettario', record.ricettario);
+  else query = query.is('ricettario', null);
+  if (record.anno !== null) query = query.eq('anno', record.anno);
+  else query = query.is('anno', null);
+
+  const { data: existing, error: selectError } = await query.maybeSingle();
+
+  if (selectError && selectError.code !== 'PGRST116') {
+    throw selectError;
+  }
+
+  if (existing && existing.id) {
+    const { error } = await supabase.from('ricette').update(record).eq('id', existing.id);
+    if (error) throw error;
+    return 'updated';
+  } else {
+    const { error } = await supabase.from('ricette').insert(record);
+    if (error) throw error;
+    return 'inserted';
+  }
 }
 
 export default async function handler(req, res) {
@@ -146,13 +226,21 @@ export default async function handler(req, res) {
     });
   }
 
+  const isMultiRow = !!colMap.ingrediente_principale;
+
   const results = {
     total: rows.length,
+    mode: isMultiRow ? 'multi-row (una riga per ingrediente)' : 'single-row (una riga per ricetta)',
+    recipes: 0,
     inserted: 0,
     updated: 0,
     errors: 0,
     errorDetails: []
   };
+
+  // Costruisce i "gruppi ricetta": multi-row aggrega per (titolo, ricettario, anno),
+  // single-row tratta ogni riga come una ricetta separata.
+  const groups = new Map();
 
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
@@ -164,75 +252,83 @@ export default async function handler(req, res) {
       continue;
     }
 
+    const ricettario = colMap.ricettario ? String(row[colMap.ricettario] || '').trim() : '';
+    const anno = colMap.anno ? parseInt(row[colMap.anno]) || null : null;
+    const key = isMultiRow
+      ? normalizeIdentityKey(titolo, ricettario, anno)
+      : `${normalizeIdentityKey(titolo, ricettario, anno)}#${i}`;
+
+    if (!groups.has(key)) {
+      groups.set(key, {
+        firstRowIdx: i,
+        titolo,
+        ricettario,
+        anno,
+        famiglia: colMap.famiglia ? String(row[colMap.famiglia] || '').trim() : '',
+        portata: colMap.portata ? String(row[colMap.portata] || '').trim() : '',
+        procedimento: colMap.procedimento ? cleanHtml(row[colMap.procedimento]) : '',
+        scheda_antropologica: colMap.scheda_antropologica ? cleanHtml(row[colMap.scheda_antropologica]) : '',
+        scheda_nutrizionale: colMap.scheda_nutrizionale ? cleanHtml(row[colMap.scheda_nutrizionale]) : '',
+        calorie: colMap.calorie ? parseInt(row[colMap.calorie]) || null : null,
+        n_persone: colMap.n_persone ? parseInt(row[colMap.n_persone]) || null : null,
+        ingredientiTextLegacy: colMap.ingredienti ? cleanHtml(row[colMap.ingredienti]) : '',
+        ingredientiList: []
+      });
+    }
+
+    if (isMultiRow) {
+      const ing = buildIngredientObject(row, colMap);
+      if (ing) groups.get(key).ingredientiList.push(ing);
+    }
+  }
+
+  results.recipes = groups.size;
+
+  for (const [, g] of groups) {
     try {
-      const ricettario = colMap.ricettario ? String(row[colMap.ricettario] || '').trim() : '';
-      const anno = colMap.anno ? parseInt(row[colMap.anno]) || null : null;
-      const famiglia = colMap.famiglia ? String(row[colMap.famiglia] || '').trim() : '';
-      const ingredienti = colMap.ingredienti ? cleanHtml(row[colMap.ingredienti]) : '';
-      const procedimento = colMap.procedimento ? cleanHtml(row[colMap.procedimento]) : '';
-      const schedaAntropologica = colMap.scheda_antropologica ? cleanHtml(row[colMap.scheda_antropologica]) : '';
-      const schedaNutrizionale = colMap.scheda_nutrizionale ? cleanHtml(row[colMap.scheda_nutrizionale]) : '';
-      const calorie = colMap.calorie ? parseInt(row[colMap.calorie]) || null : null;
-      const nPersone = colMap.n_persone ? parseInt(row[colMap.n_persone]) || null : null;
+      // Costruisci testo ingredienti: priorità a struttura multi-row, fallback a legacy text
+      const ingredientiText = g.ingredientiList.length > 0
+        ? renderIngredientsText(g.ingredientiList)
+        : g.ingredientiTextLegacy;
 
       const testoCompleto = `
-Ricetta: ${titolo}
-Famiglia: ${famiglia}
-Ingredienti: ${ingredienti}
-Preparazione: ${procedimento}
-Storia: ${schedaAntropologica}
-Note nutrizionali: ${schedaNutrizionale}
+Ricetta: ${g.titolo}
+Portata: ${g.portata}
+Famiglia: ${g.famiglia}
+Ingredienti: ${ingredientiText}
+Procedimento: ${g.procedimento}
+Storia: ${g.scheda_antropologica}
+Note nutrizionali: ${g.scheda_nutrizionale}
       `.trim();
 
       const embedding = await generateEmbedding(testoCompleto);
 
       const record = {
-        titolo,
-        famiglia,
-        ricettario,
-        anno,
-        procedimento,
-        ingredienti,
-        scheda_antropologica: schedaAntropologica,
-        scheda_nutrizionale: schedaNutrizionale,
-        calorie,
-        n_persone: nPersone,
+        titolo: g.titolo,
+        famiglia: g.famiglia,
+        ricettario: g.ricettario,
+        anno: g.anno,
+        portata: g.portata,
+        procedimento: g.procedimento,
+        ingredienti: ingredientiText,
+        ingredienti_json: g.ingredientiList.length > 0 ? g.ingredientiList : null,
+        scheda_antropologica: g.scheda_antropologica,
+        scheda_nutrizionale: g.scheda_nutrizionale,
+        calorie: g.calorie,
+        n_persone: g.n_persone,
         embedding
       };
 
-      // Match per identità (titolo + ricettario + anno) - aggiorna se esiste
-      let query = supabase.from('ricette').select('id').eq('titolo', titolo);
-      if (ricettario) query = query.eq('ricettario', ricettario);
-      else query = query.is('ricettario', null);
-      if (anno !== null) query = query.eq('anno', anno);
-      else query = query.is('anno', null);
+      const op = await upsertRecipe(record);
+      if (op === 'updated') results.updated++;
+      else results.inserted++;
 
-      const { data: existing, error: selectError } = await query.maybeSingle();
-
-      if (selectError && selectError.code !== 'PGRST116') {
-        throw selectError;
-      }
-
-      if (existing && existing.id) {
-        const { error: updateError } = await supabase
-          .from('ricette')
-          .update(record)
-          .eq('id', existing.id);
-        if (updateError) throw updateError;
-        results.updated++;
-      } else {
-        const { error: insertError } = await supabase.from('ricette').insert(record);
-        if (insertError) throw insertError;
-        results.inserted++;
-      }
-
-      // Rate limit
-      await new Promise(r => setTimeout(r, 80));
+      await new Promise(r => setTimeout(r, 80)); // rate limit OpenAI
     } catch (err) {
       results.errors++;
       results.errorDetails.push({
-        row: i + 2,
-        titolo,
+        row: g.firstRowIdx + 2,
+        titolo: g.titolo,
         error: err.message || String(err)
       });
     }
