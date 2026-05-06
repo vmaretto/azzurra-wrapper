@@ -897,6 +897,419 @@ function LoadingState() {
   );
 }
 
+// Sezione Analisi AI - permette di chiedere a Claude analisi e foresight
+// custom sul dataset delle ricette, con grafici e salvataggio.
+function AnalysesSection() {
+  const [authenticated, setAuthenticated] = useState(false);
+  const [pwInput, setPwInput] = useState('');
+  const [authPassword, setAuthPassword] = useState('');
+  const [authError, setAuthError] = useState(null);
+
+  const [question, setQuestion] = useState('');
+  const [type, setType] = useState('analysis');
+  const [running, setRunning] = useState(false);
+  const [result, setResult] = useState(null);
+  const [meta, setMeta] = useState(null);
+  const [errorMsg, setErrorMsg] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  const [savedList, setSavedList] = useState([]);
+  const [loadingList, setLoadingList] = useState(false);
+
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    setAuthError(null);
+    try {
+      const res = await fetch('/api/admin-login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-admin-password': pwInput },
+        body: JSON.stringify({})
+      });
+      if (res.ok) {
+        setAuthPassword(pwInput);
+        setAuthenticated(true);
+      } else {
+        setAuthError('Password non corretta');
+      }
+    } catch (err) {
+      setAuthError('Errore di rete: ' + err.message);
+    }
+  };
+
+  const loadSaved = async () => {
+    if (!authPassword) return;
+    setLoadingList(true);
+    try {
+      const res = await fetch('/api/admin/list-analyses?limit=50', {
+        headers: { 'x-admin-password': authPassword }
+      });
+      const data = await res.json();
+      if (res.ok) setSavedList(data.analyses || []);
+    } catch (err) {
+      console.error('list analyses error:', err);
+    } finally {
+      setLoadingList(false);
+    }
+  };
+
+  useEffect(() => {
+    if (authenticated) loadSaved();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authenticated]);
+
+  const handleRun = async (e) => {
+    e.preventDefault();
+    if (!question.trim()) return;
+    setRunning(true);
+    setResult(null);
+    setMeta(null);
+    setSaved(false);
+    setErrorMsg(null);
+    try {
+      const res = await fetch('/api/admin/run-analysis', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-admin-password': authPassword },
+        body: JSON.stringify({ question: question.trim(), type })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      setResult(data.result);
+      setMeta(data.meta);
+    } catch (err) {
+      setErrorMsg('Errore generazione analisi: ' + err.message);
+    } finally {
+      setRunning(false);
+    }
+  };
+
+  const handleSave = async () => {
+    if (!result) return;
+    setSaving(true);
+    setErrorMsg(null);
+    try {
+      const res = await fetch('/api/admin/save-analysis', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-admin-password': authPassword },
+        body: JSON.stringify({ question: question.trim(), type, result })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      setSaved(true);
+      await loadSaved();
+    } catch (err) {
+      setErrorMsg('Errore salvataggio: ' + err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleLoadSaved = async (id) => {
+    setRunning(true);
+    setErrorMsg(null);
+    try {
+      const res = await fetch(`/api/admin/get-analysis?id=${encodeURIComponent(id)}`, {
+        headers: { 'x-admin-password': authPassword }
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      setQuestion(data.question);
+      setType(data.type);
+      setResult(data.result);
+      setMeta({ savedAt: data.created_at });
+      setSaved(true);
+    } catch (err) {
+      setErrorMsg('Errore: ' + err.message);
+    } finally {
+      setRunning(false);
+    }
+  };
+
+  const handleDeleteSaved = async (id) => {
+    if (!window.confirm('Eliminare questa analisi salvata?')) return;
+    try {
+      const res = await fetch('/api/admin/delete-analysis', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-admin-password': authPassword },
+        body: JSON.stringify({ id })
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || `HTTP ${res.status}`);
+      }
+      await loadSaved();
+    } catch (err) {
+      setErrorMsg('Errore eliminazione: ' + err.message);
+    }
+  };
+
+  const examples = [
+    "Confronta l'uso dei grassi animali (burro, lardo, strutto, panna) vs vegetali (olio d'oliva) attraverso i ricettari storici dal piu' antico al piu' recente.",
+    "Mostra l'evoluzione delle calorie medie per portata nei diversi ricettari.",
+    "Quali ingredienti sono presenti solo nei ricettari moderni e assenti in Artusi?",
+    "Distribuzione delle ricette per portata e per ricettario."
+  ];
+  const foresightExamples = [
+    "Come evolveranno le ricette tradizionali italiane nei prossimi 10 anni considerando sostenibilita' e cucina vegetale?",
+    "Quali ingredienti tradizionali rischiano di sparire entro il 2035 e perche'?",
+    "Foresight sull'integrazione tra cucina italiana storica e tecnologie alimentari (lab-grown, fermentazione)."
+  ];
+
+  // ---- LOGIN GATE ----
+  if (!authenticated) {
+    return (
+      <div style={manageStyles.loginCard}>
+        <h2 style={manageStyles.loginTitle}>Area protetta</h2>
+        <p style={manageStyles.loginSubtitle}>Inserisci la password admin per accedere alle analisi AI</p>
+        <form onSubmit={handleLogin}>
+          <input
+            type="password"
+            value={pwInput}
+            onChange={(e) => setPwInput(e.target.value)}
+            placeholder="Password admin"
+            autoFocus
+            style={manageStyles.loginInput}
+          />
+          {authError && <p style={manageStyles.errorText}>{authError}</p>}
+          <button type="submit" style={manageStyles.loginBtn}>Accedi</button>
+        </form>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ animation: 'fadeInUp 0.6s' }}>
+      <div style={manageStyles.headerRow}>
+        <h2 style={manageStyles.sectionTitle}>Analisi AI sul corpus delle ricette</h2>
+        <button onClick={() => { setAuthenticated(false); setAuthPassword(''); setPwInput(''); }} style={manageStyles.linkBtn}>
+          Esci
+        </button>
+      </div>
+
+      {/* Form */}
+      <div style={manageStyles.card}>
+        <h3 style={manageStyles.cardTitle}>Nuova analisi</h3>
+        <p style={manageStyles.cardHelp}>
+          Chiedi a Claude un'analisi sui dati delle ricette o uno scenario foresight sulla cucina italiana.
+          L'AI usa tutto il dataset (titolo, ricettario, anno, ingredienti, schede) per produrre report con grafici.
+        </p>
+
+        <form onSubmit={handleRun}>
+          <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1rem', alignItems: 'center' }}>
+            <label style={{ fontSize: '0.9rem' }}>
+              <input
+                type="radio"
+                name="atype"
+                value="analysis"
+                checked={type === 'analysis'}
+                onChange={() => setType('analysis')}
+                style={{ marginRight: '0.4rem' }}
+              />
+              Analisi (sui dati storici)
+            </label>
+            <label style={{ fontSize: '0.9rem' }}>
+              <input
+                type="radio"
+                name="atype"
+                value="foresight"
+                checked={type === 'foresight'}
+                onChange={() => setType('foresight')}
+                style={{ marginRight: '0.4rem' }}
+              />
+              Foresight (proiezioni future)
+            </label>
+          </div>
+
+          <textarea
+            value={question}
+            onChange={(e) => setQuestion(e.target.value)}
+            placeholder={type === 'foresight' ? 'Es: Come evolvera\' la cucina italiana?' : 'Es: Confronta uso di grassi animali vs vegetali nei ricettari'}
+            rows={3}
+            style={manageStyles.textarea}
+            disabled={running}
+          />
+
+          <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap', marginTop: '0.75rem' }}>
+            <button type="submit" style={manageStyles.primaryBtn} disabled={running || !question.trim()}>
+              {running ? 'Generazione in corso...' : 'Genera analisi'}
+            </button>
+            {result && !saved && (
+              <button type="button" onClick={handleSave} style={manageStyles.secondaryBtn} disabled={saving}>
+                {saving ? 'Salvataggio...' : 'Salva report'}
+              </button>
+            )}
+            {saved && <span style={{ color: '#1a7f37', fontSize: '0.9rem' }}>✓ Salvato</span>}
+          </div>
+
+          {/* Esempi */}
+          <div style={{ marginTop: '1rem', fontSize: '0.85rem', color: COLORS.textLight }}>
+            <strong>Esempi:</strong>
+            <ul style={{ marginTop: '0.4rem', paddingLeft: '1.25rem' }}>
+              {(type === 'foresight' ? foresightExamples : examples).map((ex, i) => (
+                <li key={i} style={{ marginBottom: '0.3rem' }}>
+                  <button
+                    type="button"
+                    onClick={() => setQuestion(ex)}
+                    style={{ ...manageStyles.linkBtn, padding: 0, textAlign: 'left' }}
+                  >
+                    {ex}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </form>
+      </div>
+
+      {errorMsg && <div style={manageStyles.errorBox}>{errorMsg}</div>}
+
+      {/* Result */}
+      {result && (
+        <div style={{ ...manageStyles.card, marginTop: '1.5rem' }}>
+          <h3 style={{ ...manageStyles.cardTitle, fontSize: '1.2rem' }}>{result.title || 'Analisi'}</h3>
+          {meta?.recipesAnalyzed && (
+            <p style={{ fontSize: '0.8rem', color: COLORS.textLight, marginTop: 0 }}>
+              Basata su {meta.recipesAnalyzed} ricette · tipo: {type === 'foresight' ? 'foresight' : 'analisi'}
+            </p>
+          )}
+          {result.summary && (
+            <p style={{ marginTop: '0.5rem', lineHeight: 1.5, color: COLORS.text }}>{result.summary}</p>
+          )}
+
+          {Array.isArray(result.insights) && result.insights.length > 0 && (
+            <div style={{ marginTop: '1rem' }}>
+              <strong style={{ color: COLORS.primary }}>Punti chiave:</strong>
+              <ul style={{ marginTop: '0.4rem', paddingLeft: '1.25rem', lineHeight: 1.6 }}>
+                {result.insights.map((it, i) => <li key={i}>{it}</li>)}
+              </ul>
+            </div>
+          )}
+
+          {result.chartData && result.chartType && (
+            <div style={{ marginTop: '1.5rem', maxWidth: '100%', overflow: 'hidden' }}>
+              <AIChartRenderer
+                chartType={result.chartType}
+                chartData={result.chartData}
+                chartConfig={result.chartConfig || {}}
+              />
+            </div>
+          )}
+
+          {result.limitazioni && (
+            <p style={{ marginTop: '1rem', fontSize: '0.85rem', color: COLORS.textLight, fontStyle: 'italic' }}>
+              <strong>Limitazioni:</strong> {result.limitazioni}
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* Saved analyses */}
+      <div style={{ marginTop: '2rem' }}>
+        <h3 style={{ color: COLORS.primary, fontSize: '1.1rem' }}>Archivio analisi ({savedList.length})</h3>
+        {loadingList ? (
+          <p style={{ color: COLORS.textLight }}>Caricamento...</p>
+        ) : savedList.length === 0 ? (
+          <p style={{ color: COLORS.textLight }}>Nessuna analisi salvata.</p>
+        ) : (
+          <div style={manageStyles.tableWrap}>
+            <table style={manageStyles.table}>
+              <thead>
+                <tr>
+                  <th style={manageStyles.th}>Tipo</th>
+                  <th style={manageStyles.th}>Domanda</th>
+                  <th style={manageStyles.th}>Data</th>
+                  <th style={manageStyles.th}></th>
+                </tr>
+              </thead>
+              <tbody>
+                {savedList.map(a => (
+                  <tr key={a.id}>
+                    <td style={manageStyles.td}>{a.type === 'foresight' ? '🔮 Foresight' : '📊 Analisi'}</td>
+                    <td style={manageStyles.td}>{a.question.length > 100 ? a.question.slice(0, 100) + '…' : a.question}</td>
+                    <td style={manageStyles.td}>{new Date(a.created_at).toLocaleString('it-IT')}</td>
+                    <td style={manageStyles.td}>
+                      <button onClick={() => handleLoadSaved(a.id)} style={manageStyles.secondaryBtn}>Apri</button>
+                      {' '}
+                      <button onClick={() => handleDeleteSaved(a.id)} style={manageStyles.deleteBtn}>Elimina</button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Renderer dei grafici generati dall'AI: traduce il formato neutro
+// {chartType, chartData, chartConfig} in chart.js (Bar/Line/Doughnut).
+function AIChartRenderer({ chartType, chartData, chartConfig }) {
+  if (!Array.isArray(chartData) || chartData.length === 0) return null;
+
+  const xKey = chartConfig?.xKey || 'label';
+  const series = Array.isArray(chartConfig?.series) ? chartConfig.series : null;
+  const palette = ['#016fab', '#90e0ef', '#00b4d8', '#014d7a', '#f4a261', '#e76f51', '#caf0f8'];
+
+  if (chartType === 'pie') {
+    const labelKey = chartConfig?.labelKey || 'label';
+    const valueKey = chartConfig?.valueKey || 'value';
+    const data = {
+      labels: chartData.map(d => d[labelKey]),
+      datasets: [{
+        data: chartData.map(d => d[valueKey]),
+        backgroundColor: chartData.map((_, i) => palette[i % palette.length]),
+        borderWidth: 0
+      }]
+    };
+    return (
+      <div style={{ maxWidth: 480, margin: '0 auto' }}>
+        <Doughnut data={data} options={{ responsive: true, plugins: { legend: { position: 'bottom' } } }} />
+      </div>
+    );
+  }
+
+  // Bar / Line / Area
+  const labels = chartData.map(d => d[xKey]);
+  let datasets;
+  if (series && series.length > 0) {
+    datasets = series.map((s, i) => ({
+      label: s.name || s.key,
+      data: chartData.map(d => d[s.key]),
+      backgroundColor: s.color || palette[i % palette.length],
+      borderColor: s.color || palette[i % palette.length],
+      fill: chartType === 'area',
+      tension: 0.3
+    }));
+  } else {
+    // Auto-detect series: tutte le chiavi numeriche oltre xKey
+    const seriesKeys = Object.keys(chartData[0]).filter(k => k !== xKey && typeof chartData[0][k] === 'number');
+    datasets = seriesKeys.map((k, i) => ({
+      label: k,
+      data: chartData.map(d => d[k]),
+      backgroundColor: palette[i % palette.length],
+      borderColor: palette[i % palette.length],
+      fill: chartType === 'area',
+      tension: 0.3
+    }));
+  }
+
+  const data = { labels, datasets };
+  const options = {
+    responsive: true,
+    plugins: { legend: { position: 'bottom' } },
+    scales: {
+      y: { beginAtZero: true }
+    }
+  };
+
+  if (chartType === 'line' || chartType === 'area') {
+    return <Line data={data} options={options} />;
+  }
+  return <Bar data={data} options={options} />;
+}
+
 // Sezione Gestione - upload CSV + tabella ricette + eliminazione
 function ManageRecipesSection() {
   const [authenticated, setAuthenticated] = useState(false);
@@ -1227,6 +1640,8 @@ const manageStyles = {
   resultBox: { marginTop: '1rem', padding: '0.85rem 1rem', background: '#e8f4fd', borderRadius: '10px', color: '#014d7a', fontSize: '0.9rem' },
   errorBox: { margin: '1rem 0', padding: '0.85rem 1rem', background: '#fdecea', color: '#9c2222', borderRadius: '10px', fontSize: '0.9rem' },
   secondaryBtn: { padding: '0.55rem 1rem', background: '#f0f0f0', color: '#333', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '0.9rem' },
+  primaryBtn: { padding: '0.7rem 1.4rem', background: COLORS.primary, color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '0.95rem', fontWeight: 600 },
+  textarea: { width: '100%', padding: '0.75rem', borderRadius: '10px', border: '1px solid #ccc', fontSize: '0.95rem', fontFamily: 'inherit', marginTop: '0.75rem', boxSizing: 'border-box', resize: 'vertical' },
   searchInput: { flex: 1, padding: '0.7rem', borderRadius: '8px', border: '1px solid #ccc', fontSize: '0.95rem' },
   tableWrap: { overflowX: 'auto', background: 'white', borderRadius: '12px', boxShadow: '0 2px 12px rgba(0,0,0,0.05)' },
   table: { width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' },
@@ -1339,6 +1754,7 @@ export default function Dashboard() {
     { id: 'recipes', label: 'Ricette', icon: '🍰' },
     { id: 'users', label: 'Utenti', icon: '👥' },
     { id: 'insights', label: 'Insights', icon: '✨' },
+    { id: 'analyses', label: 'Analisi AI', icon: '🔬' },
     { id: 'manage', label: 'Gestione', icon: '⚙️' }
   ];
 
@@ -1389,6 +1805,7 @@ export default function Dashboard() {
             {activeSection === 'recipes' && <RecipesSection curiosities={curiosities} deepAnalytics={deepAnalytics} />}
             {activeSection === 'users' && <UsersSection analytics={analytics} stats={stats} deepAnalytics={deepAnalytics} />}
             {activeSection === 'insights' && <InsightsSection analytics={analytics} curiosities={curiosities} deepAnalytics={deepAnalytics} />}
+            {activeSection === 'analyses' && <AnalysesSection />}
             {activeSection === 'manage' && <ManageRecipesSection />}
           </>
         )}
