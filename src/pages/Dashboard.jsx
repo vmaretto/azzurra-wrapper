@@ -960,9 +960,27 @@ const analysesStyles = {
     borderRadius: '12px', fontSize: '0.95rem', fontWeight: 600, cursor: 'not-allowed'
   },
   saveBtn: {
-    padding: '0.7rem 1.2rem', background: 'white', border: `1px solid ${COLORS.primary}`,
-    color: COLORS.primary, borderRadius: '12px', fontSize: '0.9rem',
-    fontWeight: 600, cursor: 'pointer'
+    padding: '0.6rem 1.1rem', background: 'white', border: `1px solid ${COLORS.primary}`,
+    color: COLORS.primary, borderRadius: '10px', fontSize: '0.85rem',
+    fontWeight: 600, cursor: 'pointer',
+    display: 'inline-flex', alignItems: 'center', gap: '0.35rem'
+  },
+  pdfBtn: {
+    padding: '0.6rem 1.1rem',
+    background: `linear-gradient(135deg, ${COLORS.primary} 0%, ${COLORS.dark} 100%)`,
+    color: 'white', border: 'none', borderRadius: '10px',
+    fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer',
+    boxShadow: `0 2px 8px rgba(1, 111, 171, 0.25)`,
+    display: 'inline-flex', alignItems: 'center', gap: '0.35rem'
+  },
+  reportActionBar: {
+    display: 'flex', justifyContent: 'flex-end', alignItems: 'center',
+    gap: '0.75rem', flexWrap: 'wrap',
+    paddingBottom: '1rem', marginBottom: '1rem',
+    borderBottom: `1px solid ${COLORS.extraLight}`
+  },
+  reportActionLeft: {
+    display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap'
   },
   examplesGrid: {
     display: 'grid',
@@ -1062,6 +1080,8 @@ function AnalysesSection() {
 
   const [savedList, setSavedList] = useState([]);
   const [loadingList, setLoadingList] = useState(false);
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
+  const reportChartRef = useRef(null);
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -1168,6 +1188,56 @@ function AnalysesSection() {
       setErrorMsg('Errore: ' + err.message);
     } finally {
       setRunning(false);
+    }
+  };
+
+  const handleDownloadPdf = async () => {
+    if (!result) return;
+    setDownloadingPdf(true);
+    setErrorMsg(null);
+    try {
+      // Cattura il canvas Chart.js come PNG (se presente)
+      let chartImage = null;
+      const canvas = reportChartRef.current?.querySelector('canvas');
+      if (canvas) {
+        try {
+          chartImage = canvas.toDataURL('image/png');
+        } catch (e) {
+          console.warn('Impossibile catturare il grafico:', e);
+        }
+      }
+
+      const res = await fetch('/api/admin/export-analysis-pdf', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-admin-password': authPassword },
+        body: JSON.stringify({
+          title: result.title,
+          summary: result.summary,
+          insights: result.insights,
+          limitazioni: result.limitazioni,
+          question,
+          type,
+          chartImage,
+          recipesAnalyzed: meta?.recipesAnalyzed
+        })
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || `HTTP ${res.status}`);
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      const slug = (result.title || 'analisi').toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 60);
+      const today = new Date().toISOString().slice(0, 10);
+      a.download = `${slug}-${today}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setErrorMsg('Errore download PDF: ' + err.message);
+    } finally {
+      setDownloadingPdf(false);
     }
   };
 
@@ -1293,12 +1363,6 @@ function AnalysesSection() {
             >
               {running ? '⏳ Generazione...' : '✨ Genera analisi'}
             </button>
-            {result && !saved && (
-              <button type="button" onClick={handleSave} style={analysesStyles.saveBtn} disabled={saving}>
-                {saving ? 'Salvataggio...' : '💾 Salva report'}
-              </button>
-            )}
-            {saved && <span style={{ color: '#1a7f37', fontSize: '0.9rem', fontWeight: 600 }}>✓ Report salvato in archivio</span>}
           </div>
 
           {/* Examples */}
@@ -1337,6 +1401,24 @@ function AnalysesSection() {
       {/* Result */}
       {result && (
         <div style={styles.chartCard}>
+          {/* Action bar in cima al report */}
+          <div style={analysesStyles.reportActionBar}>
+            <div style={analysesStyles.reportActionLeft}>
+              {saved ? (
+                <span style={{ color: '#1a7f37', fontSize: '0.85rem', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
+                  ✓ Salvato in archivio
+                </span>
+              ) : (
+                <button type="button" onClick={handleSave} style={analysesStyles.saveBtn} disabled={saving}>
+                  {saving ? 'Salvataggio...' : '💾 Salva report'}
+                </button>
+              )}
+              <button type="button" onClick={handleDownloadPdf} style={analysesStyles.pdfBtn} disabled={downloadingPdf}>
+                {downloadingPdf ? '📄 Generazione PDF...' : '📄 Scarica PDF'}
+              </button>
+            </div>
+          </div>
+
           <h2 style={analysesStyles.resultTitle}>{result.title || 'Analisi'}</h2>
           <div style={analysesStyles.resultMeta}>
             {meta?.recipesAnalyzed && <span>📚 {meta.recipesAnalyzed} ricette analizzate</span>}
@@ -1363,7 +1445,7 @@ function AnalysesSection() {
           )}
 
           {result.chartData && result.chartType && (
-            <div style={{ marginTop: '1.5rem', background: 'white', borderRadius: '14px', padding: '1.25rem', border: `1px solid ${COLORS.extraLight}` }}>
+            <div ref={reportChartRef} style={{ marginTop: '1.5rem', background: 'white', borderRadius: '14px', padding: '1.25rem', border: `1px solid ${COLORS.extraLight}` }}>
               <AIChartRenderer
                 chartType={result.chartType}
                 chartData={result.chartData}
