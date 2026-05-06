@@ -74,7 +74,19 @@ Il dataset contiene ricette italiane storiche da diversi ricettari (Artusi, Acca
 
 NON assumere mai che il corpus sia "solo dolci" o "tradizione dolciaria": guarda effettivamente il campo portata/famiglia di ogni ricetta nei dati forniti.
 Se l'utente chiede un'analisi su una specifica portata (es. "i primi piatti"), filtra mentalmente solo le ricette con quella portata.
-Se la domanda e' generica (es. "evoluzione della cucina italiana"), usa l'INTERO corpus.`;
+Se la domanda e' generica (es. "evoluzione della cucina italiana"), usa l'INTERO corpus.
+
+## SCHEMA COMPATTO DEL DATASET (per ridurre token)
+Ogni ricetta nel JSON che ricevi e' un oggetto con queste chiavi abbreviate:
+- t = titolo
+- ric = ricettario
+- a = anno (numero)
+- f = famiglia
+- p = portata (Dolci/Primi/Secondi/Antipasti/Contorni/Condimenti)
+- ing = ingredienti principali (lista di nomi separati da virgola, max 12, gia' deduplicati)
+- cal = calorie (numero o null)
+
+Il campo "ing" contiene SOLO i nomi degli ingredienti principali, senza quantita' ne' suddivisione in sezioni. Questo basta per analisi sulla presenza/assenza di ingredienti, conteggi e raggruppamenti. Per analisi su quantita' specifiche (es. "quanti grammi di burro nelle ricette") il dato non e' disponibile in questa vista compatta - segnalalo come limitazione.`;
 
 const ANALYSIS_SYSTEM_PROMPT = `Sei un'analista gastronomica esperta del corpus della cucina italiana storica. Analizzi i dati FORNITI nel messaggio dell'utente per estrarre tendenze, pattern e statistiche.
 
@@ -112,17 +124,30 @@ async function fetchRecipesContext() {
 }
 
 function compactRecipe(r) {
-  // Versione compatta per ridurre i token, mantenendo i campi piu' utili
+  // Versione ULTRA compatta per stare sotto i 50K token/min di rate limit Anthropic.
+  // - Estrai solo i nomi principali degli ingredienti (no quantita/specifico/sezione)
+  // - Tronca aggressivamente i testi
+  // - Drop scheda_antropologica/nutrizionale (testi enormi, raramente servono per analisi)
+  let ingredientiCompact = '';
+  if (Array.isArray(r.ingredienti_json) && r.ingredienti_json.length > 0) {
+    const names = r.ingredienti_json
+      .map(ing => (ing && ing.principale) ? String(ing.principale).trim() : '')
+      .filter(Boolean);
+    // Dedup e join
+    const unique = [...new Set(names.map(n => n.toLowerCase()))].slice(0, 12);
+    ingredientiCompact = unique.join(', ');
+  } else if (r.ingredienti) {
+    ingredientiCompact = String(r.ingredienti).slice(0, 120);
+  }
+
   return {
-    titolo: r.titolo,
-    ricettario: r.ricettario,
-    anno: r.anno,
-    famiglia: r.famiglia,
-    portata: r.portata || null,
-    ingredienti: (r.ingredienti || '').slice(0, 600),
-    note_nutrizionali: (r.scheda_nutrizionale || '').slice(0, 300),
-    calorie: r.calorie,
-    n_persone: r.n_persone
+    t: r.titolo,
+    ric: r.ricettario,
+    a: r.anno,
+    f: r.famiglia,
+    p: r.portata || null,
+    ing: ingredientiCompact,
+    cal: r.calorie
   };
 }
 
