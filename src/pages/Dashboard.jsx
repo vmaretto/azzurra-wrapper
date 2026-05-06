@@ -897,6 +897,307 @@ function LoadingState() {
   );
 }
 
+// Sezione Gestione - upload CSV + tabella ricette + eliminazione
+function ManageRecipesSection() {
+  const [authenticated, setAuthenticated] = useState(false);
+  const [pwInput, setPwInput] = useState('');
+  const [authPassword, setAuthPassword] = useState('');
+  const [authError, setAuthError] = useState(null);
+
+  const [recipes, setRecipes] = useState([]);
+  const [total, setTotal] = useState(0);
+  const [search, setSearch] = useState('');
+  const [loadingList, setLoadingList] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [uploadResult, setUploadResult] = useState(null);
+  const [errMsg, setErrMsg] = useState(null);
+  const fileInputRef = useRef(null);
+
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    setAuthError(null);
+    try {
+      const res = await fetch('/api/admin-login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-admin-password': pwInput },
+        body: JSON.stringify({})
+      });
+      if (res.ok) {
+        setAuthPassword(pwInput);
+        setAuthenticated(true);
+      } else {
+        setAuthError('Password non corretta');
+      }
+    } catch (err) {
+      setAuthError('Errore di rete: ' + err.message);
+    }
+  };
+
+  const loadRecipes = async (q = '') => {
+    if (!authPassword) return;
+    setLoadingList(true);
+    setErrMsg(null);
+    try {
+      const url = `/api/admin/list-recipes?limit=200&search=${encodeURIComponent(q)}`;
+      const res = await fetch(url, { headers: { 'x-admin-password': authPassword } });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || `HTTP ${res.status}`);
+      }
+      const data = await res.json();
+      setRecipes(data.recipes || []);
+      setTotal(data.total || 0);
+    } catch (err) {
+      setErrMsg('Errore caricamento ricette: ' + err.message);
+    } finally {
+      setLoadingList(false);
+    }
+  };
+
+  useEffect(() => {
+    if (authenticated) loadRecipes('');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authenticated]);
+
+  const handleSearch = (e) => {
+    e.preventDefault();
+    loadRecipes(search);
+  };
+
+  const handleUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    setUploadResult(null);
+    setErrMsg(null);
+    try {
+      const csv = await file.text();
+      const res = await fetch('/api/admin/upload-recipes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-admin-password': authPassword },
+        body: JSON.stringify({ csv })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      setUploadResult(data);
+      await loadRecipes(search);
+    } catch (err) {
+      setErrMsg('Errore upload: ' + err.message);
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const handleDelete = async (id, titolo) => {
+    if (!window.confirm(`Eliminare "${titolo}"?`)) return;
+    setErrMsg(null);
+    try {
+      const res = await fetch('/api/admin/delete-recipe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-admin-password': authPassword },
+        body: JSON.stringify({ id })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      await loadRecipes(search);
+    } catch (err) {
+      setErrMsg('Errore eliminazione: ' + err.message);
+    }
+  };
+
+  const downloadSampleCsv = () => {
+    const sample = [
+      'titolo;ricettario;anno;famiglia;ingredienti;procedimento;scheda_antropologica;scheda_nutrizionale;calorie;n_persone',
+      'Tiramisu;Accademia Italiana della Cucina;1985;Dolci al cucchiaio;mascarpone 500g, savoiardi 300g, caffe 250ml, uova 4, zucchero 100g;Sbattere i tuorli con lo zucchero...;Dolce nato a Treviso negli anni 60;Ricco di proteine;380;6'
+    ].join('\n');
+    const blob = new Blob([sample], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'ricette-sample.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  // ---- LOGIN GATE ----
+  if (!authenticated) {
+    return (
+      <div style={manageStyles.loginCard}>
+        <h2 style={manageStyles.loginTitle}>Area protetta</h2>
+        <p style={manageStyles.loginSubtitle}>Inserisci la password admin per gestire le ricette</p>
+        <form onSubmit={handleLogin}>
+          <input
+            type="password"
+            value={pwInput}
+            onChange={(e) => setPwInput(e.target.value)}
+            placeholder="Password admin"
+            autoFocus
+            style={manageStyles.loginInput}
+          />
+          {authError && <p style={manageStyles.errorText}>{authError}</p>}
+          <button type="submit" style={manageStyles.loginBtn}>Accedi</button>
+        </form>
+      </div>
+    );
+  }
+
+  // ---- ADMIN UI ----
+  return (
+    <div style={{ animation: 'fadeInUp 0.6s' }}>
+      <div style={manageStyles.headerRow}>
+        <h2 style={manageStyles.sectionTitle}>Gestione Ricette ({total})</h2>
+        <button onClick={() => { setAuthenticated(false); setAuthPassword(''); setPwInput(''); }} style={manageStyles.linkBtn}>
+          Esci
+        </button>
+      </div>
+
+      {/* Upload */}
+      <div style={manageStyles.card}>
+        <h3 style={manageStyles.cardTitle}>Importa da CSV</h3>
+        <p style={manageStyles.cardHelp}>
+          Colonne: <code>titolo</code> (obbligatoria), <code>ricettario</code>, <code>anno</code>, <code>famiglia</code>, <code>ingredienti</code>, <code>procedimento</code>, <code>scheda_antropologica</code>, <code>scheda_nutrizionale</code>, <code>calorie</code>, <code>n_persone</code>.<br/>
+          Le righe esistenti (stesso titolo + ricettario + anno) vengono aggiornate. Embeddings rigenerati automaticamente.
+        </p>
+        <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap', marginTop: '0.75rem' }}>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".csv,text/csv"
+            onChange={handleUpload}
+            disabled={uploading}
+          />
+          <button onClick={downloadSampleCsv} style={manageStyles.secondaryBtn}>
+            Scarica CSV di esempio
+          </button>
+          {uploading && <span style={{ color: COLORS.primary }}>Caricamento in corso (puo richiedere qualche minuto)...</span>}
+        </div>
+
+        {uploadResult && (
+          <div style={manageStyles.resultBox}>
+            <strong>Import completato</strong>: {uploadResult.inserted} inserite, {uploadResult.updated} aggiornate, {uploadResult.errors} errori (su {uploadResult.total}).
+            {uploadResult.errorDetails?.length > 0 && (
+              <details style={{ marginTop: '0.5rem' }}>
+                <summary style={{ cursor: 'pointer' }}>Dettagli errori</summary>
+                <ul style={{ marginTop: '0.5rem', fontSize: '0.85rem', paddingLeft: '1.25rem' }}>
+                  {uploadResult.errorDetails.slice(0, 20).map((e, i) => (
+                    <li key={i}>Riga {e.row}{e.titolo ? ` (${e.titolo})` : ''}: {e.error}</li>
+                  ))}
+                </ul>
+              </details>
+            )}
+          </div>
+        )}
+      </div>
+
+      {errMsg && <div style={manageStyles.errorBox}>{errMsg}</div>}
+
+      {/* Search */}
+      <form onSubmit={handleSearch} style={{ display: 'flex', gap: '0.5rem', margin: '1.5rem 0 1rem' }}>
+        <input
+          type="text"
+          placeholder="Cerca per titolo..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          style={manageStyles.searchInput}
+        />
+        <button type="submit" style={manageStyles.secondaryBtn}>Cerca</button>
+        {search && (
+          <button type="button" onClick={() => { setSearch(''); loadRecipes(''); }} style={manageStyles.secondaryBtn}>
+            Reset
+          </button>
+        )}
+      </form>
+
+      {/* Table */}
+      {loadingList ? (
+        <p style={{ textAlign: 'center', color: COLORS.text, padding: '2rem' }}>Caricamento ricette...</p>
+      ) : recipes.length === 0 ? (
+        <p style={{ textAlign: 'center', color: COLORS.text, padding: '2rem' }}>Nessuna ricetta trovata.</p>
+      ) : (
+        <div style={manageStyles.tableWrap}>
+          <table style={manageStyles.table}>
+            <thead>
+              <tr>
+                <th style={manageStyles.th}>Titolo</th>
+                <th style={manageStyles.th}>Ricettario</th>
+                <th style={manageStyles.th}>Anno</th>
+                <th style={manageStyles.th}>Famiglia</th>
+                <th style={manageStyles.th}>Calorie</th>
+                <th style={manageStyles.th}></th>
+              </tr>
+            </thead>
+            <tbody>
+              {recipes.map((r) => (
+                <tr key={r.id}>
+                  <td style={manageStyles.td}>{r.titolo}</td>
+                  <td style={manageStyles.td}>{r.ricettario || '—'}</td>
+                  <td style={manageStyles.td}>{r.anno || '—'}</td>
+                  <td style={manageStyles.td}>{r.famiglia || '—'}</td>
+                  <td style={manageStyles.td}>{r.calorie || '—'}</td>
+                  <td style={manageStyles.td}>
+                    <button onClick={() => handleDelete(r.id, r.titolo)} style={manageStyles.deleteBtn}>
+                      Elimina
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+const manageStyles = {
+  loginCard: {
+    maxWidth: '420px',
+    margin: '3rem auto',
+    background: 'white',
+    padding: '2rem',
+    borderRadius: '16px',
+    boxShadow: '0 4px 24px rgba(0,0,0,0.08)'
+  },
+  loginTitle: { color: COLORS.primary, marginBottom: '0.5rem', fontSize: '1.4rem' },
+  loginSubtitle: { color: COLORS.text, fontSize: '0.95rem', marginBottom: '1.5rem' },
+  loginInput: {
+    width: '100%',
+    padding: '0.85rem',
+    fontSize: '1rem',
+    borderRadius: '10px',
+    border: '1px solid #ddd',
+    marginBottom: '1rem',
+    boxSizing: 'border-box'
+  },
+  errorText: { color: '#dc3545', fontSize: '0.9rem', marginBottom: '0.75rem' },
+  loginBtn: {
+    width: '100%',
+    padding: '0.85rem',
+    fontSize: '1rem',
+    background: `linear-gradient(135deg, ${COLORS.primary} 0%, ${COLORS.dark} 100%)`,
+    color: 'white',
+    border: 'none',
+    borderRadius: '10px',
+    cursor: 'pointer'
+  },
+  headerRow: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem' },
+  sectionTitle: { color: COLORS.primary, fontSize: '1.4rem', margin: 0 },
+  linkBtn: { background: 'transparent', border: 'none', color: COLORS.primary, cursor: 'pointer', fontSize: '0.9rem', textDecoration: 'underline' },
+  card: { background: 'white', borderRadius: '16px', padding: '1.5rem', boxShadow: '0 2px 12px rgba(0,0,0,0.05)' },
+  cardTitle: { color: COLORS.primary, marginTop: 0, marginBottom: '0.5rem', fontSize: '1.05rem' },
+  cardHelp: { color: COLORS.text, fontSize: '0.9rem', margin: 0, lineHeight: 1.5 },
+  resultBox: { marginTop: '1rem', padding: '0.85rem 1rem', background: '#e8f4fd', borderRadius: '10px', color: '#014d7a', fontSize: '0.9rem' },
+  errorBox: { margin: '1rem 0', padding: '0.85rem 1rem', background: '#fdecea', color: '#9c2222', borderRadius: '10px', fontSize: '0.9rem' },
+  secondaryBtn: { padding: '0.55rem 1rem', background: '#f0f0f0', color: '#333', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '0.9rem' },
+  searchInput: { flex: 1, padding: '0.7rem', borderRadius: '8px', border: '1px solid #ccc', fontSize: '0.95rem' },
+  tableWrap: { overflowX: 'auto', background: 'white', borderRadius: '12px', boxShadow: '0 2px 12px rgba(0,0,0,0.05)' },
+  table: { width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' },
+  th: { textAlign: 'left', padding: '0.85rem', background: '#f5f7fa', borderBottom: '2px solid #e0e0e0', color: COLORS.primary, fontWeight: 600 },
+  td: { padding: '0.75rem 0.85rem', borderBottom: '1px solid #f0f0f0' },
+  deleteBtn: { padding: '0.4rem 0.85rem', background: '#dc3545', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '0.85rem' }
+};
+
 // Icone SVG (invece di emoji per coerenza)
 function SessionIcon() {
   return (
@@ -1000,7 +1301,8 @@ export default function Dashboard() {
     { id: 'overview', label: 'Overview', icon: '📊' },
     { id: 'recipes', label: 'Ricette', icon: '🍰' },
     { id: 'users', label: 'Utenti', icon: '👥' },
-    { id: 'insights', label: 'Insights', icon: '✨' }
+    { id: 'insights', label: 'Insights', icon: '✨' },
+    { id: 'manage', label: 'Gestione', icon: '⚙️' }
   ];
 
   return (
@@ -1050,6 +1352,7 @@ export default function Dashboard() {
             {activeSection === 'recipes' && <RecipesSection curiosities={curiosities} deepAnalytics={deepAnalytics} />}
             {activeSection === 'users' && <UsersSection analytics={analytics} stats={stats} deepAnalytics={deepAnalytics} />}
             {activeSection === 'insights' && <InsightsSection analytics={analytics} curiosities={curiosities} deepAnalytics={deepAnalytics} />}
+            {activeSection === 'manage' && <ManageRecipesSection />}
           </>
         )}
       </main>
