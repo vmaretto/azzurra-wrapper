@@ -4,9 +4,11 @@
 import { createClient } from '@supabase/supabase-js';
 import { requireAdmin } from '../_admin-auth.js';
 
+// Lettura: SERVICE_KEY se disponibile, altrimenti ANON_KEY (la tabella ha policy SELECT pubblica)
+const supabaseKey = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_ANON_KEY;
 const supabase =
-  process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_KEY
-    ? createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
+  process.env.SUPABASE_URL && supabaseKey
+    ? createClient(process.env.SUPABASE_URL, supabaseKey)
     : null;
 
 export default async function handler(req, res) {

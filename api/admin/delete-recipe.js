@@ -16,7 +16,9 @@ export default async function handler(req, res) {
   if (!requireAdmin(req, res)) return;
 
   if (!supabase) {
-    return res.status(500).json({ error: 'Supabase non configurato' });
+    return res.status(500).json({
+      error: 'SUPABASE_SERVICE_KEY non configurata su Vercel. Necessaria per eliminare dal DB (bypassa Row Level Security).'
+    });
   }
 
   const id = (req.body && req.body.id) || req.query.id;

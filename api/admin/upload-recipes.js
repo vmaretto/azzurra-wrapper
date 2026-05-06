@@ -104,7 +104,9 @@ export default async function handler(req, res) {
   if (!requireAdmin(req, res)) return;
 
   if (!supabase) {
-    return res.status(500).json({ error: 'Supabase non configurato (SUPABASE_URL/SUPABASE_SERVICE_KEY mancanti)' });
+    return res.status(500).json({
+      error: 'SUPABASE_SERVICE_KEY non configurata su Vercel. La service key e\' necessaria per scrivere nel DB (bypassa Row Level Security). Aggiungerla in Vercel > Settings > Environment Variables.'
+    });
   }
   if (!openai) {
     return res.status(500).json({ error: 'OpenAI non configurato (OPENAI_API_KEY mancante)' });
