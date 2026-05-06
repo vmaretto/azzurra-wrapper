@@ -1244,7 +1244,7 @@ function AnalysesSection() {
 
       {/* Form card */}
       <div style={styles.chartCard}>
-        <form onSubmit={handleRun}>
+        <form onSubmit={handleRun} style={{ maxWidth: 'none', width: '100%', display: 'block' }}>
           <h3 style={styles.chartTitle}>Nuova analisi</h3>
           <p style={styles.chartSubtitle}>
             L'AI usa l'intero dataset (titolo, ricettario, anno, ingredienti, schede) per produrre un report con grafico interattivo.
