@@ -13,7 +13,6 @@ import {
   Filler
 } from 'chart.js';
 import { Bar, Line, Doughnut } from 'react-chartjs-2';
-import html2canvas from 'html2canvas';
 import Papa from 'papaparse';
 
 ChartJS.register(
@@ -975,6 +974,15 @@ const analysesStyles = {
     boxShadow: `0 2px 8px rgba(1, 111, 171, 0.25)`,
     display: 'inline-flex', alignItems: 'center', gap: '0.35rem'
   },
+  docxBtn: {
+    padding: '0.6rem 1.1rem',
+    background: 'white',
+    color: COLORS.primary,
+    border: `1.5px solid ${COLORS.primary}`,
+    borderRadius: '10px',
+    fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer',
+    display: 'inline-flex', alignItems: 'center', gap: '0.35rem'
+  },
   reportActionBar: {
     display: 'flex', justifyContent: 'flex-end', alignItems: 'center',
     gap: '0.75rem', flexWrap: 'wrap',
@@ -1100,6 +1108,7 @@ function AnalysesSection() {
   const [savedList, setSavedList] = useState([]);
   const [loadingList, setLoadingList] = useState(false);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
+  const [downloadingDocx, setDownloadingDocx] = useState(false);
   const reportChartRef = useRef(null);
   const reportPanelRef = useRef(null);
 
@@ -1211,52 +1220,105 @@ function AnalysesSection() {
     }
   };
 
+  // Cattura ogni canvas Chart.js singolarmente (ordine = ordine charts[]).
+  // Niente html2canvas: estraiamo direttamente il PNG dal canvas.
+  const captureChartImages = () => {
+    const el = reportChartRef.current;
+    if (!el) return [];
+    const canvases = el.querySelectorAll('canvas');
+    const out = [];
+    canvases.forEach(c => {
+      try {
+        out.push(c.toDataURL('image/png'));
+      } catch {
+        out.push(null);
+      }
+    });
+    return out;
+  };
+
+  // Normalizza i grafici: schema nuovo charts[] o legacy chartType/Data/Config
+  const getNormalizedCharts = () => {
+    if (!result) return [];
+    if (Array.isArray(result.charts) && result.charts.length > 0) return result.charts;
+    if (result.chartData && result.chartType) {
+      return [{
+        title: '',
+        description: '',
+        type: result.chartType,
+        data: result.chartData,
+        config: result.chartConfig || {}
+      }];
+    }
+    return [];
+  };
+
+  // Costruisce il payload comune per export PDF/Word
+  const buildExportPayload = () => {
+    const charts = getNormalizedCharts().map(ch => ({
+      title: ch.title || '',
+      description: ch.description || '',
+      type: ch.type
+    }));
+    return {
+      title: result.title || 'analisi',
+      summary: result.summary || '',
+      insights: Array.isArray(result.insights) ? result.insights : [],
+      approfondimento: result.approfondimento || '',
+      limitazioni: result.limitazioni || '',
+      question,
+      type,
+      recipesAnalyzed: meta?.recipesAnalyzed,
+      charts,
+      chartImages: captureChartImages()
+    };
+  };
+
+  const downloadBlob = async (endpoint, ext) => {
+    const res = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-admin-password': authPassword },
+      body: JSON.stringify(buildExportPayload())
+    });
+    if (!res.ok) {
+      let data = {};
+      try { data = await res.json(); } catch {}
+      throw new Error(data.error || `HTTP ${res.status}`);
+    }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    const slug = (result.title || 'analisi').toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 60);
+    const today = new Date().toISOString().slice(0, 10);
+    a.download = `${slug}-${today}.${ext}`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   const handleDownloadPdf = async () => {
     if (!result) return;
     setDownloadingPdf(true);
     setErrorMsg(null);
     try {
-      const el = reportPanelRef.current;
-      if (!el) throw new Error('Pannello report non trovato');
-
-      // Cattura il pannello del report ad alta risoluzione (retina-like)
-      const canvas = await html2canvas(el, {
-        scale: 2,
-        backgroundColor: '#ffffff',
-        logging: false,
-        useCORS: true,
-        windowWidth: el.scrollWidth,
-        windowHeight: el.scrollHeight
-      });
-
-      const reportImage = canvas.toDataURL('image/png');
-
-      const res = await fetch('/api/admin/export-analysis-pdf', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-admin-password': authPassword },
-        body: JSON.stringify({
-          reportImage,
-          title: result.title || 'analisi',
-          type
-        })
-      });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.error || `HTTP ${res.status}`);
-      }
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      const slug = (result.title || 'analisi').toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 60);
-      const today = new Date().toISOString().slice(0, 10);
-      a.download = `${slug}-${today}.pdf`;
-      a.click();
-      URL.revokeObjectURL(url);
+      await downloadBlob('/api/admin/export-analysis-pdf', 'pdf');
     } catch (err) {
       setErrorMsg('Errore download PDF: ' + err.message);
     } finally {
       setDownloadingPdf(false);
+    }
+  };
+
+  const handleDownloadDocx = async () => {
+    if (!result) return;
+    setDownloadingDocx(true);
+    setErrorMsg(null);
+    try {
+      await downloadBlob('/api/admin/export-analysis-docx', 'docx');
+    } catch (err) {
+      setErrorMsg('Errore download Word: ' + err.message);
+    } finally {
+      setDownloadingDocx(false);
     }
   };
 
@@ -1432,8 +1494,11 @@ function AnalysesSection() {
                   {saving ? 'Salvataggio...' : '💾 Salva report'}
                 </button>
               )}
-              <button type="button" onClick={handleDownloadPdf} style={analysesStyles.pdfBtn} disabled={downloadingPdf}>
-                {downloadingPdf ? '📄 Generazione PDF...' : '📄 Scarica PDF'}
+              <button type="button" onClick={handleDownloadPdf} style={analysesStyles.pdfBtn} disabled={downloadingPdf || downloadingDocx}>
+                {downloadingPdf ? '📄 Generazione...' : '📄 PDF'}
+              </button>
+              <button type="button" onClick={handleDownloadDocx} style={analysesStyles.docxBtn} disabled={downloadingPdf || downloadingDocx}>
+                {downloadingDocx ? '📝 Generazione...' : '📝 Word'}
               </button>
             </div>
           </div>
