@@ -1028,7 +1028,24 @@ const analysesStyles = {
   },
   resultSummary: {
     fontSize: '1rem', lineHeight: 1.6, color: COLORS.text,
-    margin: '0 0 1rem'
+    margin: '0 0 1rem',
+    background: `linear-gradient(135deg, rgba(202, 240, 248, 0.4) 0%, rgba(255,255,255,0.6) 100%)`,
+    padding: '0.85rem 1rem',
+    borderRadius: '10px',
+    borderLeft: `3px solid ${COLORS.primary}`
+  },
+  approfondimentoBox: {
+    background: 'rgba(255,255,255,0.7)',
+    borderRadius: '12px',
+    padding: '1.25rem 1.5rem',
+    border: `1px solid ${COLORS.extraLight}`,
+    color: COLORS.text,
+    fontSize: '0.95rem',
+    lineHeight: 1.7
+  },
+  approfondimentoPar: {
+    margin: '0 0 0.85rem',
+    textAlign: 'justify'
   },
   limitazioniBox: {
     marginTop: '1.25rem', padding: '0.75rem 1rem',
@@ -1432,11 +1449,16 @@ function AnalysesSection() {
             {meta?.savedAt && <span>💾 {new Date(meta.savedAt).toLocaleString('it-IT')}</span>}
           </div>
 
-          {result.summary && <p style={analysesStyles.resultSummary}>{result.summary}</p>}
+          {result.summary && (
+            <div>
+              <h4 style={{ ...styles.chartTitle, marginTop: '0.5rem', marginBottom: '0.5rem' }}>Sintesi</h4>
+              <p style={analysesStyles.resultSummary}>{result.summary}</p>
+            </div>
+          )}
 
           {Array.isArray(result.insights) && result.insights.length > 0 && (
             <div>
-              <h4 style={{ ...styles.chartTitle, marginTop: '1rem' }}>Punti chiave</h4>
+              <h4 style={{ ...styles.chartTitle, marginTop: '1.25rem' }}>Punti chiave</h4>
               <div style={analysesStyles.insightsGrid}>
                 {result.insights.map((it, i) => (
                   <div key={i} style={analysesStyles.insightCard}>
@@ -1448,14 +1470,55 @@ function AnalysesSection() {
             </div>
           )}
 
-          {result.chartData && result.chartType && (
-            <div ref={reportChartRef} style={{ marginTop: '1.5rem', background: 'white', borderRadius: '14px', padding: '1.25rem', border: `1px solid ${COLORS.extraLight}` }}>
-              <AIChartRenderer
-                chartType={result.chartType}
-                chartData={result.chartData}
-                chartConfig={result.chartConfig || {}}
-                title={result.title}
-              />
+          {(() => {
+            // Normalizza vecchio schema (chartData/chartType) e nuovo (charts[])
+            const charts = Array.isArray(result.charts) && result.charts.length > 0
+              ? result.charts
+              : (result.chartData && result.chartType
+                  ? [{
+                      title: '',
+                      description: '',
+                      type: result.chartType,
+                      data: result.chartData,
+                      config: result.chartConfig || {}
+                    }]
+                  : []);
+            if (charts.length === 0) return null;
+            return (
+              <div ref={reportChartRef} style={{ marginTop: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                <h4 style={{ ...styles.chartTitle, margin: 0 }}>Visualizzazioni dati ({charts.length})</h4>
+                {charts.map((ch, idx) => (
+                  <div key={idx} style={{ background: 'white', borderRadius: '14px', padding: '1.25rem', border: `1px solid ${COLORS.extraLight}` }}>
+                    {ch.title && (
+                      <h5 style={{ margin: '0 0 0.25rem', color: COLORS.dark, fontSize: '1rem', fontWeight: 700 }}>
+                        {ch.title}
+                      </h5>
+                    )}
+                    {ch.description && (
+                      <p style={{ margin: '0 0 1rem', color: COLORS.textLight, fontSize: '0.85rem' }}>
+                        {ch.description}
+                      </p>
+                    )}
+                    <AIChartRenderer
+                      chartType={ch.type}
+                      chartData={ch.data}
+                      chartConfig={ch.config || {}}
+                      title={ch.title}
+                    />
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
+
+          {result.approfondimento && (
+            <div style={{ marginTop: '1.5rem' }}>
+              <h4 style={{ ...styles.chartTitle, marginTop: 0 }}>Approfondimento</h4>
+              <div style={analysesStyles.approfondimentoBox}>
+                {String(result.approfondimento).split(/\n\s*\n/).map((par, i) => (
+                  <p key={i} style={analysesStyles.approfondimentoPar}>{par}</p>
+                ))}
+              </div>
             </div>
           )}
 

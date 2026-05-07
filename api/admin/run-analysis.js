@@ -29,22 +29,37 @@ Restituisci SOLO un oggetto JSON conforme a questa struttura — niente testo pr
   "title": "Titolo breve (max 100 caratteri)",
   "summary": "Sintesi di 2-3 frasi",
   "insights": ["punto chiave 1", "punto chiave 2", "punto chiave 3"],
+  "approfondimento": "Testo discorsivo di 4-8 paragrafi che approfondisce l'analisi: contesto storico/culturale, lettura dei numeri, comparazioni significative, eccezioni interessanti, implicazioni. Usa \\n\\n per separare i paragrafi.",
   "limitazioni": "Note sui limiti dei dati (opzionale, stringa)",
-  "chartType": "bar" | "line" | "area" | "pie",
-  "chartData": [ ...vedi sotto ],
-  "chartConfig": { ...vedi sotto }
+  "charts": [
+    {
+      "title": "Titolo del grafico (es. 'Distribuzione calorica per ricettario')",
+      "description": "1 frase che spiega cosa mostra il grafico e come leggerlo",
+      "type": "bar" | "line" | "area" | "pie",
+      "data": [ ...vedi sotto ],
+      "config": { ...vedi sotto }
+    }
+  ]
 }
 
-## REGOLE CRITICHE PER chartData (la violazione spacca la UI)
-- Ogni elemento di chartData DEVE essere un oggetto piatto con SOLO valori PRIMITIVI (string o number).
+## QUANTI GRAFICI?
+- Produci 2-4 grafici quando i dati permettono di guardare il fenomeno da angoli diversi.
+  Esempio per "uso di grassi animali vs vegetali":
+    1. Andamento temporale (line) - evoluzione % per ricettario/anno
+    2. Distribuzione per portata (bar stacked o gruppato)
+    3. Top ingredienti grassi nel corpus (bar singola serie)
+- Produci almeno 1 grafico, sempre.
+- Ogni grafico deve avere title e description chiari (description in 1 frase, non ridondante).
+
+## REGOLE CRITICHE PER charts[].data (la violazione spacca la UI)
+- Ogni elemento di data DEVE essere un oggetto piatto con SOLO valori PRIMITIVI (string o number).
 - VIETATO mettere oggetti annidati come valori. Es. NO: { "label": "1891", "Burro": { "tipo": "storico", "valore": 45 } }
 - I valori delle serie devono essere NUMERI, non oggetti. Es. SI: { "label": "1891", "Burro": 45, "Olio": 12 }
 - Le label/x devono essere stringhe corte e descrittive (es. "Artusi 1891", non un oggetto).
-- chartData deve avere tra 3 e 30 elementi.
+- data deve avere tra 3 e 20 elementi (chiarezza > densita').
 - Se vuoi distinguere "storico" vs "proiezione" usa una serie separata, non un oggetto annidato.
-  ESEMPIO: { "label": "2030", "Storico": null, "Proiezione": 65 }
 
-## chartConfig per bar/line/area
+## charts[].config per bar/line/area
 {
   "xKey": "label",
   "series": [
@@ -53,17 +68,26 @@ Restituisci SOLO un oggetto JSON conforme a questa struttura — niente testo pr
   ]
 }
 
-## chartConfig per pie (singola serie)
-chartData: [ { "label": "Artusi", "value": 36 }, { "label": "Accademia", "value": 24 } ]
-chartConfig: { "labelKey": "label", "valueKey": "value" }
+## charts[].config per pie (singola serie)
+data: [ { "label": "Artusi", "value": 36 }, { "label": "Accademia", "value": 24 } ]
+config: { "labelKey": "label", "valueKey": "value" }
 
-## Palette colori (usa questi)
+## SCELTA TIPO GRAFICO
+- bar: confronti tra categorie (ricettari, portate, famiglie)
+- line: evoluzione temporale (anni)
+- area: evoluzione temporale con enfasi su volumi cumulati
+- pie: distribuzioni percentuali tra 3-7 categorie (mai oltre 8 fette)
+
+## Palette colori (usa questi, nomi serie devono essere descrittivi)
 #016fab #014d7a #00b4d8 #90e0ef #caf0f8 #f4a261 #e76f51 #2a9d8f #e9c46a
 
 ## ALTRE REGOLE
 - I numeri devono derivare dai dati reali, mai inventati. Se servono percentuali, calcolale.
-- summary e insights in italiano, professionali ma divulgativi.
-- Se i dati sono insufficienti, riempi comunque chartData con i numeri disponibili e spiega in "limitazioni".`;
+- summary: 2-3 frasi (overview rapida)
+- approfondimento: 4-8 paragrafi DETTAGLIATI con contesto storico, lettura dei dati, eccezioni, comparazioni
+- insights: 3-5 bullet sintetici
+- Italiano professionale ma divulgativo.
+- Se i dati sono insufficienti per una serie, includi comunque il grafico con valori parziali e spiega in "limitazioni".`;
 
 const DATASET_DESCRIPTION = `## CARATTERISTICHE DEL DATASET (importante)
 Il dataset contiene ricette italiane storiche da diversi ricettari (Artusi, Accademia Italiana della Cucina, Cucchiaio d'Argento, Marchesi, Talismano della Felicità, ecc.).
@@ -163,39 +187,62 @@ function tryParseJson(text) {
   return JSON.parse(candidate.slice(first, last + 1));
 }
 
-// Sanitizza il payload AI: forza valori primitivi in chartData
-// (Claude a volte mette oggetti annidati che spaccano il render React).
+// Pulisce un array data (di un grafico) forzando valori primitivi.
+function sanitizeChartData(arr) {
+  if (!Array.isArray(arr)) return [];
+  return arr.map(d => {
+    if (!d || typeof d !== 'object') return null;
+    const cleaned = {};
+    for (const [k, v] of Object.entries(d)) {
+      if (v === null || v === undefined) {
+        cleaned[k] = null;
+      } else if (typeof v === 'number' || typeof v === 'boolean') {
+        cleaned[k] = v;
+      } else if (typeof v === 'string') {
+        cleaned[k] = v;
+      } else if (typeof v === 'object') {
+        const numericVal = v.value ?? v.valore ?? v.count ?? v.n ?? v.numero ?? null;
+        cleaned[k] = typeof numericVal === 'number' ? numericVal : null;
+      } else {
+        cleaned[k] = String(v);
+      }
+    }
+    return cleaned;
+  }).filter(Boolean);
+}
+
+// Sanitizza il payload AI: gestisce sia il nuovo schema con charts[] sia
+// quello legacy con chartType/chartData/chartConfig (per analisi salvate
+// prima dell'aggiornamento).
 function sanitizeAnalysisResult(parsed) {
   if (!parsed || typeof parsed !== 'object') return parsed;
 
   const result = { ...parsed };
-  if (Array.isArray(result.chartData)) {
-    result.chartData = result.chartData
-      .map(d => {
-        if (!d || typeof d !== 'object') return null;
-        const cleaned = {};
-        for (const [k, v] of Object.entries(d)) {
-          if (v === null || v === undefined) {
-            cleaned[k] = null;
-          } else if (typeof v === 'number' || typeof v === 'boolean') {
-            cleaned[k] = v;
-          } else if (typeof v === 'string') {
-            cleaned[k] = v;
-          } else if (typeof v === 'object') {
-            // valore-oggetto non ammesso: prova a estrarre un numero
-            const numericVal = v.value ?? v.valore ?? v.count ?? v.n ?? v.numero ?? null;
-            if (typeof numericVal === 'number') {
-              cleaned[k] = numericVal;
-            } else {
-              cleaned[k] = null; // skip
-            }
-          } else {
-            cleaned[k] = String(v);
-          }
-        }
-        return cleaned;
-      })
-      .filter(Boolean);
+
+  // Schema nuovo: charts[]
+  if (Array.isArray(result.charts)) {
+    result.charts = result.charts.map(ch => {
+      if (!ch || typeof ch !== 'object') return null;
+      return {
+        title: typeof ch.title === 'string' ? ch.title : '',
+        description: typeof ch.description === 'string' ? ch.description : '',
+        type: ['bar', 'line', 'area', 'pie'].includes(ch.type) ? ch.type : 'bar',
+        data: sanitizeChartData(ch.data),
+        config: (ch.config && typeof ch.config === 'object') ? ch.config : {}
+      };
+    }).filter(c => c && c.data.length > 0);
+  } else if (Array.isArray(result.chartData)) {
+    // Schema legacy: wrappa in charts[]
+    result.charts = [{
+      title: result.title || 'Grafico',
+      description: '',
+      type: ['bar', 'line', 'area', 'pie'].includes(result.chartType) ? result.chartType : 'bar',
+      data: sanitizeChartData(result.chartData),
+      config: result.chartConfig || {}
+    }];
+    delete result.chartData;
+    delete result.chartType;
+    delete result.chartConfig;
   }
 
   // Normalizza insights ad array di stringhe
@@ -205,8 +252,8 @@ function sanitizeAnalysisResult(parsed) {
       .filter(Boolean);
   }
 
-  // Forza title/summary/limitazioni a stringhe
-  for (const k of ['title', 'summary', 'limitazioni']) {
+  // Forza title/summary/approfondimento/limitazioni a stringhe
+  for (const k of ['title', 'summary', 'approfondimento', 'limitazioni']) {
     if (result[k] != null && typeof result[k] !== 'string') {
       result[k] = typeof result[k] === 'object' ? JSON.stringify(result[k]) : String(result[k]);
     }
@@ -288,7 +335,7 @@ Restituisci SOLO il JSON conforme allo schema indicato.`;
 
     const response = await anthropic.messages.create({
       model: 'claude-haiku-4-5-20251001',
-      max_tokens: 4000,
+      max_tokens: 8000, // approfondimento + 2-4 grafici richiedono piu' output
       system: systemPrompt,
       messages: [{ role: 'user', content: userMessage }]
     });
